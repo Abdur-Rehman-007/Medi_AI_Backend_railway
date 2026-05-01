@@ -1,0 +1,358 @@
+@Backend_APIs_HostAddress = http://192.168.100.111:5280
+@AuthToken = 
+
+# Health
+GET {{Backend_APIs_HostAddress}}/api/auth/health
+Accept: application/json
+
+###
+
+##### Authentication
+
+### Register
+POST {{Backend_APIs_HostAddress}}/api/auth/register
+Content-Type: application/json
+
+{
+  "fullName": "Test User",
+  "email": "test@example.com",
+  "password": "Password123!",
+  "phoneNumber": "1234567890"
+}
+
+###
+
+### Verify OTP
+POST {{Backend_APIs_HostAddress}}/api/auth/verify-otp
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "otp": "123456"
+}
+
+###
+
+### Login
+POST {{Backend_APIs_HostAddress}}/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "password": "Password123!"
+}
+
+###
+
+### Current user (requires Authorization)
+GET {{Backend_APIs_HostAddress}}/api/auth/current-user
+Accept: application/json
+Authorization: Bearer {{AuthToken}}
+
+###
+
+### Forgot password
+POST {{Backend_APIs_HostAddress}}/api/auth/forgot-password
+Content-Type: application/json
+
+{
+  "email": "test@example.com"
+}
+
+###
+
+### Reset password
+POST {{Backend_APIs_HostAddress}}/api/auth/reset-password
+Content-Type: application/json
+
+{
+  "token": "token-from-email",
+  "password": "NewPassword123!"
+}
+
+###
+
+### Resend OTP
+POST {{Backend_APIs_HostAddress}}/api/auth/resend-otp
+Content-Type: application/json
+
+{
+  "email": "test@example.com"
+}
+
+###
+
+##### Users
+
+### Get my profile
+GET {{Backend_APIs_HostAddress}}/api/users/profile
+Accept: application/json
+Authorization: Bearer {{AuthToken}}
+
+###
+
+### Update my profile
+PUT {{Backend_APIs_HostAddress}}/api/users/profile
+Content-Type: application/json
+Authorization: Bearer {{AuthToken}}
+
+{
+  "fullName": "Updated Name",
+  "phoneNumber": "9876543210",
+  "address": "123 Main St"
+}
+
+###
+
+### Change password
+POST {{Backend_APIs_HostAddress}}/api/users/change-password
+Content-Type: application/json
+Authorization: Bearer {{AuthToken}}
+
+{
+  "currentPassword": "Password123!",
+  "newPassword": "NewPassword123!"
+}
+
+###
+
+### Upload profile photo (form)
+POST {{Backend_APIs_HostAddress}}/api/users/upload-photo
+Authorization: Bearer {{AuthToken}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary
+
+------WebKitFormBoundary
+Content-Disposition: form-data; name="photo"; filename="profile.jpg"
+Content-Type: image/jpeg
+
+[binary data]
+------WebKitFormBoundary--
+
+###
+
+##### Doctors
+
+### Get all doctors
+GET {{Backend_APIs_HostAddress}}/api/doctors
+Accept: application/json
+
+###
+
+### Get doctor by id
+GET {{Backend_APIs_HostAddress}}/api/doctors/1
+Accept: application/json
+
+###
+
+### Get doctors by specialization
+GET {{Backend_APIs_HostAddress}}/api/doctors/specialization/cardiology
+Accept: application/json
+
+###
+
+### Update availability (requires role)
+PATCH {{Backend_APIs_HostAddress}}/api/doctors/1/availability
+Content-Type: application/json
+Authorization: Bearer {{AuthToken}}
+
+true
+
+###
+
+### Update doctor profile (requires role)
+PUT {{Backend_APIs_HostAddress}}/api/doctors/1
+Content-Type: application/json
+Authorization: Bearer {{AuthToken}}
+
+{
+  "id": 1,
+  "specialization": "General",
+  "qualification": "MBBS",
+  "experience": 5,
+  "experienceYears": 10
+}
+
+###
+
+### Get available doctors
+GET {{Backend_APIs_HostAddress}}/api/doctors/available
+Accept: application/json
+
+###
+
+### Search doctors
+GET {{Backend_APIs_HostAddress}}/api/doctors/search?query=smith&specialization=cardiology&availableOnly=true
+Accept: application/json
+
+###
+
+### Get specializations
+GET {{Backend_APIs_HostAddress}}/api/doctors/specializations
+Accept: application/json
+
+###
+
+### Get available slots for a doctor
+GET {{Backend_APIs_HostAddress}}/api/doctors/1/available-slots?date=2026-02-16
+Accept: application/json
+
+###
+
+### Get doctor's schedule
+GET {{Backend_APIs_HostAddress}}/api/doctors/1/schedule
+Accept: application/json
+
+###
+
+##### Appointments
+
+### Book appointment
+POST {{Backend_APIs_HostAddress}}/api/appointments
+Content-Type: application/json
+Authorization: Bearer {{AuthToken}}
+
+{
+  "patientId": "1",
+  "doctorId": "1",
+  "dateTime": "2026-02-20T10:00:00Z",
+  "symptoms": "Headache",
+  "notes": ""
+}
+
+###
+
+### Get student upcoming appointments
+GET {{Backend_APIs_HostAddress}}/api/appointments/student/1/upcoming
+Accept: application/json
+Authorization: Bearer {{AuthToken}}
+
+###
+
+### Get faculty/doctor appointments (requires role)
+GET {{Backend_APIs_HostAddress}}/api/appointments/Faculty/appointments
+Accept: application/json
+Authorization: Bearer {{AuthToken}}
+
+###
+
+### Get appointment by id
+GET {{Backend_APIs_HostAddress}}/api/appointments/1
+Accept: application/json
+Authorization: Bearer {{AuthToken}}
+
+###
+
+### Update appointment status (requires role)
+PUT {{Backend_APIs_HostAddress}}/api/appointments/1/status
+Content-Type: application/json
+Authorization: Bearer {{AuthToken}}
+
+{
+  "status": "Confirmed"
+}
+
+###
+
+### Cancel appointment
+DELETE {{Backend_APIs_HostAddress}}/api/appointments/1
+Authorization: Bearer {{AuthToken}}
+
+###
+
+### Add prescription (requires role)
+PUT {{Backend_APIs_HostAddress}}/api/appointments/1/prescription
+Content-Type: application/json
+Authorization: Bearer {{AuthToken}}
+
+{
+  "prescription": "Take Paracetamol 500mg twice daily"
+}
+
+###
+
+##### Medicine Reminders
+
+### Get my reminders
+GET {{Backend_APIs_HostAddress}}/api/medicinereminders
+Accept: application/json
+Authorization: Bearer {{AuthToken}}
+
+###
+
+### Get active reminders
+GET {{Backend_APIs_HostAddress}}/api/medicinereminders/active
+Accept: application/json
+Authorization: Bearer {{AuthToken}}
+
+###
+
+### Get reminder by id
+GET {{Backend_APIs_HostAddress}}/api/medicinereminders/1
+Accept: application/json
+Authorization: Bearer {{AuthToken}}
+
+###
+
+### Create reminder
+POST {{Backend_APIs_HostAddress}}/api/medicinereminders
+Content-Type: application/json
+Authorization: Bearer {{AuthToken}}
+
+{
+  "medicineName": "Ibuprofen",
+  "dosage": "200mg",
+  "frequency": "Daily",
+  "times": "08:00,20:00",
+  "startDate": "2026-02-16",
+  "notes": "After meal"
+}
+
+###
+
+### Update reminder
+PUT {{Backend_APIs_HostAddress}}/api/medicinereminders/1
+Content-Type: application/json
+Authorization: Bearer {{AuthToken}}
+
+{
+  "medicineName": "Ibuprofen",
+  "dosage": "400mg",
+  "frequency": "Daily",
+  "times": "08:00,20:00",
+  "startDate": "2026-02-16",
+  "notes": ""
+}
+
+###
+
+### Toggle reminder active
+PATCH {{Backend_APIs_HostAddress}}/api/medicinereminders/1/toggle
+Authorization: Bearer {{AuthToken}}
+
+###
+
+### Delete reminder
+DELETE {{Backend_APIs_HostAddress}}/api/medicinereminders/1
+Authorization: Bearer {{AuthToken}}
+
+###
+
+### Log intake
+POST {{Backend_APIs_HostAddress}}/api/medicinereminders/1/log
+Content-Type: application/json
+Authorization: Bearer {{AuthToken}}
+
+{
+  "scheduledTime": "2026-02-16T08:00:00Z",
+  "status": "taken",
+  "notes": "Took with water"
+}
+
+###
+
+### Today's schedule
+GET {{Backend_APIs_HostAddress}}/api/medicinereminders/today
+Accept: application/json
+Authorization: Bearer {{AuthToken}}
+
+###
