@@ -3,10 +3,8 @@
 -- Healthcare Management System for Students & Faculty
 -- =====================================================
 
--- Drop database if exists and create fresh
-DROP DATABASE IF EXISTS mediaidb;
-CREATE DATABASE mediaidb CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE mediaidb;
+-- Use the Railway database
+USE railway;
 
 -- =====================================================
 -- 1. USERS & AUTHENTICATION
