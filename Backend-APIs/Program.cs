@@ -174,6 +174,8 @@ namespace Backend_APIs
                 // app.UseSwaggerUI();
             // }
 
+
+                
             //app.UseHttpsRedirection();
 
             // Enable serving static files (for profile photos)
@@ -185,6 +187,28 @@ namespace Backend_APIs
             app.UseAuthorization();
 
             app.MapControllers();
+// --- ADD THIS BLOCK JUST BEFORE app.Run(); ---
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    try
+    {
+        var context = services.GetRequiredService<MediaidbContext>();
+        
+        // Option A: If you use Migrations (Recommended)
+        context.Database.Migrate(); 
+        
+        // Option B: If you just want the tables created without migration history
+        // context.Database.EnsureCreated(); 
+    }
+    catch (Exception ex)
+    {
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "An error occurred during database synchronization.");
+    }
+}
+// ---------------------------------------------
+
 
             app.Run();
         }
