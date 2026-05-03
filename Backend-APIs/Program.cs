@@ -159,12 +159,19 @@ namespace Backend_APIs
                     await context.Response.WriteAsJsonAsync(response);
                 });
             });
-
+            // REMOVE the if (app.Environment.IsDevelopment()) wrapper
+            // REMOVE the if (app.Environment.IsDevelopment()) wrapper
+            app.UseSwagger();
+            app.UseSwaggerUI(options =>
+            {
+              options.SwaggerEndpoint("/swagger/v1/swagger.json", "MediAI API v1");
+              options.RoutePrefix = string.Empty; // This makes Swagger show up at https://mediaibackendrailway-production.up.railway.app/
+            });
             // Configure the HTTP request pipeline.
             // if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("EnableSwagger"))
             // {
-                app.UseSwagger();
-                app.UseSwaggerUI();
+                // app.UseSwagger();
+                // app.UseSwaggerUI();
             // }
 
             //app.UseHttpsRedirection();
