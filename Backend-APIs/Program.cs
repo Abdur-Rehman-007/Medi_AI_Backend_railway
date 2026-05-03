@@ -161,11 +161,11 @@ namespace Backend_APIs
             });
 
             // Configure the HTTP request pipeline.
-            if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("EnableSwagger"))
-            {
+            // if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("EnableSwagger"))
+            // {
                 app.UseSwagger();
                 app.UseSwaggerUI();
-            }
+            // }
 
             //app.UseHttpsRedirection();
 
