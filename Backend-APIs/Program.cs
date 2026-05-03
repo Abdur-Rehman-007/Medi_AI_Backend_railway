@@ -196,7 +196,7 @@ using (var scope = app.Services.CreateScope())
         var context = services.GetRequiredService<MediaidbContext>();
         
         // Option A: If you use Migrations (Recommended)
-        context.Database.Migrate(); 
+        context.Database.EnsureCreated(); 
         
         // Option B: If you just want the tables created without migration history
         // context.Database.EnsureCreated(); 
