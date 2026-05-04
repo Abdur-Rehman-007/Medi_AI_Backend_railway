@@ -28,6 +28,48 @@ namespace Backend_APIs.Controllers
             _context = context;
         }
 
+        // ==========================================
+        // 🚀 THE MAGIC FIX: Auto-Create Doctor Profile
+        // ==========================================
+        private async Task<Doctor> EnsureDoctorProfileExists(int userId)
+        {
+            var doctor = await _context.Doctors
+                .Include(d => d.User)
+                .Include(d => d.Doctorschedules)
+                .FirstOrDefaultAsync(d => d.UserId == userId);
+
+            if (doctor == null)
+            {
+                var user = await _context.Users.FindAsync(userId);
+                if (user != null && (user.Role.ToLower() == "doctor"))
+                {
+                    doctor = new Doctor
+                    {
+                        UserId = user.Id,
+                        Specialization = "General Physician",
+                        LicenseNumber = $"TEMP-{user.Id}-{DateTime.UtcNow.Ticks}",
+                        Qualification = "MBBS",
+                        Experience = 5,
+                        IsAvailable = true,
+                        Bio = "Experienced doctor available for consultation.",
+                        AverageRating = 0,
+                        TotalRatings = 0,
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    };
+                    _context.Doctors.Add(doctor);
+                    await _context.SaveChangesAsync();
+
+                    // Reload with includes so subsequent code doesn't crash
+                    doctor = await _context.Doctors
+                        .Include(d => d.User)
+                        .Include(d => d.Doctorschedules)
+                        .FirstOrDefaultAsync(d => d.UserId == userId);
+                }
+            }
+            return doctor;
+        }
+
         /// <summary>
         /// Get current doctor profile
         /// </summary>
@@ -40,10 +82,7 @@ namespace Backend_APIs.Controllers
                 if (userIdClaim == null) return Unauthorized();
                 var userId = int.Parse(userIdClaim.Value);
 
-                var doctor = await _context.Doctors
-                    .Include(d => d.User)
-                    .FirstOrDefaultAsync(d => d.UserId == userId);
-
+                var doctor = await EnsureDoctorProfileExists(userId);
                 if (doctor == null) return NotFound("Doctor profile not found");
 
                 return Ok(new ApiResponse<object>
@@ -88,10 +127,7 @@ namespace Backend_APIs.Controllers
                 if (userIdClaim == null) return Unauthorized();
                 var userId = int.Parse(userIdClaim.Value);
 
-                var doctor = await _context.Doctors
-                    .Include(d => d.User)
-                    .FirstOrDefaultAsync(d => d.UserId == userId);
-
+                var doctor = await EnsureDoctorProfileExists(userId);
                 if (doctor == null) return NotFound(new ApiResponse<object> { Success = false, Message = "Doctor profile not found" });
 
                 if (!string.IsNullOrEmpty(dto.FullName)) doctor.User.FullName = dto.FullName;
@@ -379,9 +415,8 @@ namespace Backend_APIs.Controllers
         [AllowAnonymous]
         public async Task<ActionResult<object>> GetAvailableDoctors()
         {
-            // Auto-create doctor profiles for users with role 'Doctor' if missing
             var doctorUsers = await _context.Users
-                .Where(u => u.Role == "Doctor" && !_context.Doctors.Any(d => d.UserId == u.Id))
+                .Where(u => (u.Role == "Doctor" || u.Role == "doctor") && !_context.Doctors.Any(d => d.UserId == u.Id))
                 .ToListAsync();
 
             if (doctorUsers.Any())
@@ -450,20 +485,17 @@ namespace Backend_APIs.Controllers
                     .Where(d => d.User.IsActive == true)
                     .AsQueryable();
 
-                // Filter by availability
                 if (availableOnly == true)
                 {
                     doctorsQuery = doctorsQuery.Where(d => d.IsAvailable == true);
                 }
 
-                // Filter by specialization
                 if (!string.IsNullOrWhiteSpace(specialization))
                 {
                     doctorsQuery = doctorsQuery.Where(d =>
                         d.Specialization.ToLower().Contains(specialization.ToLower()));
                 }
 
-                // Search by name or specialization
                 if (!string.IsNullOrWhiteSpace(query))
                 {
                     doctorsQuery = doctorsQuery.Where(d =>
@@ -552,7 +584,6 @@ namespace Backend_APIs.Controllers
         {
             try
             {
-                // Validate date
                 if (!DateOnly.TryParse(date, out var requestedDate))
                 {
                     return BadRequest(new ApiResponse<object>
@@ -563,7 +594,6 @@ namespace Backend_APIs.Controllers
                     });
                 }
 
-                // Check if date is in the past
                 if (requestedDate < DateOnly.FromDateTime(DateTime.Today))
                 {
                     return BadRequest(new ApiResponse<object>
@@ -574,7 +604,6 @@ namespace Backend_APIs.Controllers
                     });
                 }
 
-                // Get doctor
                 var doctor = await _context.Doctors
                     .Include(d => d.User)
                     .Include(d => d.Doctorschedules)
@@ -590,10 +619,8 @@ namespace Backend_APIs.Controllers
                     });
                 }
 
-                // Get day of week
                 var dayOfWeek = requestedDate.DayOfWeek.ToString();
 
-                // Get doctor's schedule for that day
                 var schedule = doctor.Doctorschedules
                     .FirstOrDefault(s => s.DayOfWeek == dayOfWeek && s.IsActive == true);
 
@@ -613,7 +640,6 @@ namespace Backend_APIs.Controllers
                     });
                 }
 
-                // Get existing appointments for this date
                 var existingAppointments = await _context.Appointments
                     .Where(a => a.DoctorId == id
                         && a.AppointmentDate == requestedDate
@@ -621,7 +647,6 @@ namespace Backend_APIs.Controllers
                     .Select(a => a.AppointmentTime)
                     .ToListAsync();
 
-                // Generate time slots
                 var slots = new List<AvailableSlotDto>();
                 var startTime = schedule.StartTime;
                 var endTime = schedule.EndTime;
@@ -762,7 +787,7 @@ namespace Backend_APIs.Controllers
                 if (userIdClaim == null) return Unauthorized();
                 var userId = int.Parse(userIdClaim.Value);
 
-                var doctor = await _context.Doctors.FirstOrDefaultAsync(d => d.UserId == userId);
+                var doctor = await EnsureDoctorProfileExists(userId);
                 if (doctor == null) return NotFound("Doctor profile not found");
 
                 var settings = await GetDoctorBookingSettingsInternalAsync(doctor.Id);
@@ -795,7 +820,7 @@ namespace Backend_APIs.Controllers
                 if (userIdClaim == null) return Unauthorized();
                 var userId = int.Parse(userIdClaim.Value);
 
-                var doctor = await _context.Doctors.FirstOrDefaultAsync(d => d.UserId == userId);
+                var doctor = await EnsureDoctorProfileExists(userId);
                 if (doctor == null) return NotFound("Doctor profile not found");
 
                 NormalizeBookingSettings(dto);
@@ -898,7 +923,7 @@ namespace Backend_APIs.Controllers
                 if (userIdClaim == null) return Unauthorized();
                 var userId = int.Parse(userIdClaim.Value);
 
-                var doctor = await _context.Doctors.FirstOrDefaultAsync(d => d.UserId == userId);
+                var doctor = await EnsureDoctorProfileExists(userId);
                 if (doctor == null) return NotFound("Doctor profile not found");
 
                 var today = DateOnly.FromDateTime(DateTime.Today);
@@ -947,7 +972,7 @@ namespace Backend_APIs.Controllers
                 if (userIdClaim == null) return Unauthorized();
                 var userId = int.Parse(userIdClaim.Value);
 
-                var doctor = await _context.Doctors.FirstOrDefaultAsync(d => d.UserId == userId);
+                var doctor = await EnsureDoctorProfileExists(userId);
                 if (doctor == null) return NotFound("Doctor profile not found");
 
                 var appointments = await _context.Appointments
@@ -997,7 +1022,7 @@ namespace Backend_APIs.Controllers
                 if (userIdClaim == null) return Unauthorized();
                 var userId = int.Parse(userIdClaim.Value);
 
-                var doctor = await _context.Doctors.FirstOrDefaultAsync(d => d.UserId == userId);
+                var doctor = await EnsureDoctorProfileExists(userId);
                 if (doctor == null) return NotFound("Doctor profile not found");
 
                 var patientIds = await _context.Appointments
@@ -1052,16 +1077,12 @@ namespace Backend_APIs.Controllers
                 if (userIdClaim == null) return Unauthorized();
                 var userId = int.Parse(userIdClaim.Value);
 
-                var doctor = await _context.Doctors
-                    .Include(d => d.Doctorschedules)
-                    .FirstOrDefaultAsync(d => d.UserId == userId);
-
+                var doctor = await EnsureDoctorProfileExists(userId);
                 if (doctor == null) return NotFound("Doctor profile not found");
 
                 List<DoctorScheduleDto> schedules;
                 if (!doctor.Doctorschedules.Any())
                 {
-                    // If no schedules found, return default empty schedule structure for frontend
                     schedules = new List<string> { "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday" }
                         .Select(day => new DoctorScheduleDto
                         {
@@ -1122,10 +1143,7 @@ namespace Backend_APIs.Controllers
                 if (userIdClaim == null) return Unauthorized();
                 var userId = int.Parse(userIdClaim.Value);
 
-                var doctor = await _context.Doctors
-                    .Include(d => d.Doctorschedules)
-                    .FirstOrDefaultAsync(d => d.UserId == userId);
-
+                var doctor = await EnsureDoctorProfileExists(userId);
                 if (doctor == null) return NotFound("Doctor profile not found");
 
                 var normalizedDays = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -1177,8 +1195,6 @@ namespace Backend_APIs.Controllers
                     }
                 }
 
-                // Clear existing schedules or update them. 
-                // Easiest approach: Remove all and re-add based on DTO
                 _context.Doctorschedules.RemoveRange(doctor.Doctorschedules);
 
                 var newSchedules = dto.Schedules.Select(s => new Doctorschedule
@@ -1215,7 +1231,7 @@ namespace Backend_APIs.Controllers
                 if (userIdClaim == null) return Unauthorized();
                 var userId = int.Parse(userIdClaim.Value);
 
-                var doctor = await _context.Doctors.FirstOrDefaultAsync(d => d.UserId == userId);
+                var doctor = await EnsureDoctorProfileExists(userId);
                 if (doctor == null) return NotFound("Doctor profile not found");
 
                 var today = DateOnly.FromDateTime(DateTime.Today);
@@ -1266,31 +1282,24 @@ namespace Backend_APIs.Controllers
                 if (userIdClaim == null) return Unauthorized();
                 var userId = int.Parse(userIdClaim.Value);
 
-                var doctor = await _context.Doctors
-                    .Include(d => d.User)
-                    .FirstOrDefaultAsync(d => d.UserId == userId);
-
+                var doctor = await EnsureDoctorProfileExists(userId);
                 if (doctor == null) return NotFound("Doctor profile not found");
 
                 var today = DateOnly.FromDateTime(DateTime.Today);
                 var now = TimeOnly.FromDateTime(DateTime.Now);
 
-                // Get today's appointments
                 var todayAppointments = await _context.Appointments
                     .Where(a => a.DoctorId == doctor.Id && a.AppointmentDate == today)
                     .ToListAsync();
 
-                // Get pending today
                 var pendingToday = await _context.Appointments
                     .Where(a => a.DoctorId == doctor.Id && a.AppointmentDate == today && a.Status == "Pending")
                     .CountAsync();
 
-                // Get completed today
                 var completedToday = await _context.Appointments
                     .Where(a => a.DoctorId == doctor.Id && a.AppointmentDate == today && (a.Status == "Completed" || a.Status == "Checked"))
                     .CountAsync();
 
-                // Get total unique patients (all time)
                 var totalPatients = await _context.Appointments
                     .Where(a => a.DoctorId == doctor.Id)
                     .Select(a => a.PatientId)
