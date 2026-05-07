@@ -219,44 +219,6 @@ CREATE TABLE SymptomChecks (
 ) ENGINE=InnoDB;
 
 -- =====================================================
--- 6. HEALTH TIPS & ARTICLES
--- =====================================================
-
--- Health tips
-CREATE TABLE HealthTips (
-    Id INT AUTO_INCREMENT PRIMARY KEY,
-    Title VARCHAR(200) NOT NULL,
-    Category ENUM('Nutrition','Exercise','Mental Health','Sleep','General','Prevention','Seasonal') NOT NULL,
-    Content TEXT NOT NULL,
-    ImageUrl VARCHAR(500),
-    Source VARCHAR(200),
-    AuthorId INT,
-    Views INT DEFAULT 0,
-    Likes INT DEFAULT 0,
-    IsPublished BOOLEAN DEFAULT TRUE,
-    PublishedAt TIMESTAMP NULL,
-    CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UpdatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (AuthorId) REFERENCES Users(Id) ON DELETE SET NULL,
-    INDEX idx_category (Category),
-    INDEX idx_published (IsPublished, PublishedAt)
-) ENGINE=InnoDB;
-
--- Health tip user interactions
-CREATE TABLE HealthTipInteractions (
-    Id INT AUTO_INCREMENT PRIMARY KEY,
-    HealthTipId INT NOT NULL,
-    UserId INT NOT NULL,
-    IsLiked BOOLEAN DEFAULT FALSE,
-    IsBookmarked BOOLEAN DEFAULT FALSE,
-    CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UpdatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (HealthTipId) REFERENCES HealthTips(Id) ON DELETE CASCADE,
-    FOREIGN KEY (UserId) REFERENCES Users(Id) ON DELETE CASCADE,
-    UNIQUE KEY unique_user_tip (UserId, HealthTipId)
-) ENGINE=InnoDB;
-
--- =====================================================
 -- 7. NOTIFICATIONS
 -- =====================================================
 
@@ -407,7 +369,6 @@ INSERT INTO SystemSettings (SettingKey, SettingValue, Description, DataType) VAL
 ('OTPExpiryMinutes', '10', 'OTP expiry time in minutes', 'Integer'),
 ('MaxLoginAttempts', '5', 'Maximum login attempts before account lockout', 'Integer'),
 ('MinPasswordLength', '6', 'Minimum password length', 'Integer'),
-('HealthTipsPerPage', '10', 'Number of health tips per page', 'Integer'),
 ('AppVersion', '1.0.0', 'Current app version', 'String'),
 ('MaintenanceMode', 'false', 'Enable/disable maintenance mode', 'Boolean');
 
@@ -429,14 +390,6 @@ INSERT INTO DoctorSchedule (DoctorId, DayOfWeek, StartTime, EndTime, IsActive) V
 (1, 'Wednesday', '09:00:00', '17:00:00', TRUE),
 (1, 'Thursday', '09:00:00', '17:00:00', TRUE),
 (1, 'Friday', '09:00:00', '17:00:00', TRUE);
-
--- Insert sample health tips
-INSERT INTO HealthTips (Title, Category, Content, AuthorId, IsPublished, PublishedAt) VALUES
-('Stay Hydrated for Better Health', 'General', 'Drinking adequate water is essential for maintaining good health. Aim for 8-10 glasses daily to keep your body functioning optimally.', 2, TRUE, NOW()),
-('Importance of Regular Exercise', 'Exercise', 'Regular physical activity helps maintain a healthy weight, reduces stress, and improves overall well-being. Try to exercise at least 30 minutes daily.', 2, TRUE, NOW()),
-('Mental Health Matters', 'Mental Health', 'Take care of your mental health by practicing mindfulness, getting enough sleep, and reaching out for support when needed.', 2, TRUE, NOW()),
-('Healthy Eating Habits', 'Nutrition', 'A balanced diet rich in fruits, vegetables, whole grains, and lean proteins supports your immune system and overall health.', 2, TRUE, NOW()),
-('Quality Sleep for Better Performance', 'Sleep', 'Getting 7-9 hours of quality sleep is crucial for academic performance, concentration, and overall health.', 2, TRUE, NOW());
 
 -- =====================================================
 -- CREATE VIEWS FOR COMMON QUERIES
@@ -596,16 +549,6 @@ AFTER DELETE ON DoctorReviews
 FOR EACH ROW
 BEGIN
     CALL UpdateDoctorRating(OLD.DoctorId);
-END //
-
--- Trigger: Increment health tip views
-CREATE TRIGGER before_health_tip_interaction_insert
-BEFORE INSERT ON HealthTipInteractions
-FOR EACH ROW
-BEGIN
-    UPDATE HealthTips 
-    SET Views = Views + 1 
-    WHERE Id = NEW.HealthTipId;
 END //
 
 DELIMITER ;

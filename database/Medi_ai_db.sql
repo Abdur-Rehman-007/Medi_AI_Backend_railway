@@ -483,7 +483,6 @@ INSERT INTO systemsettings (SettingKey, SettingValue, Description, DataType) VAL
 ('OTPExpiryMinutes', '10', 'OTP expiry time in minutes', 'Integer'),
 ('MaxLoginAttempts', '5', 'Maximum login attempts before account lockout', 'Integer'),
 ('MinPasswordLength', '6', 'Minimum password length', 'Integer'),
-('HealthTipsPerPage', '10', 'Number of health tips per page', 'Integer'),
 ('AppVersion', '1.0.0', 'Current app version', 'String'),
 ('MaintenanceMode', 'false', 'Enable or disable maintenance mode', 'Boolean'),
 ('DoctorBookingSettings:1', '{"appointmentDuration":30,"maxPatientsPerDay":16,"autoConfirmAppointments":false,"enableBreakTime":false,"breakStartTime":"12:00","breakEndTime":"13:00","enableAppointmentReminders":true,"enableMedicineReminders":true,"reminderNotificationMinutes":15}', 'Doctor-specific booking settings in JSON format (key pattern: DoctorBookingSettings:{doctorId})', 'JSON');

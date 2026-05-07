@@ -57,10 +57,6 @@ public partial class User
 
     public virtual ICollection<Emergencycontact> Emergencycontacts { get; set; } = new List<Emergencycontact>();
 
-    public virtual ICollection<Healthtipinteraction> Healthtipinteractions { get; set; } = new List<Healthtipinteraction>();
-
-    public virtual ICollection<Healthtip> Healthtips { get; set; } = new List<Healthtip>();
-
     public virtual ICollection<Medicalhistory> Medicalhistories { get; set; } = new List<Medicalhistory>();
 
     public virtual ICollection<Medicinereminder> Medicinereminders { get; set; } = new List<Medicinereminder>();

@@ -36,10 +36,6 @@ public partial class MediaidbContext : DbContext
 
     public virtual DbSet<Emergencycontact> Emergencycontacts { get; set; }
 
-    public virtual DbSet<Healthtip> Healthtips { get; set; }
-
-    public virtual DbSet<Healthtipinteraction> Healthtipinteractions { get; set; }
-
     public virtual DbSet<Medicalhistory> Medicalhistories { get; set; }
 
     public virtual DbSet<Medicinereminder> Medicinereminders { get; set; }
@@ -226,70 +222,6 @@ public partial class MediaidbContext : DbContext
                 .HasConstraintName("doctorleaves_ibfk_1");
         });
 
-        modelBuilder.Entity<Doctorperformancesummary>(entity =>
-        {
-            entity
-                .HasNoKey()
-                .ToView("doctorperformancesummary");
-
-            entity.Property(e => e.AverageRating)
-                .HasPrecision(3, 2)
-                .HasDefaultValueSql("'0.00'");
-            entity.Property(e => e.DoctorName).HasMaxLength(100);
-            entity.Property(e => e.Specialization).HasMaxLength(100);
-            entity.Property(e => e.TotalRatings).HasDefaultValueSql("'0'");
-        });
-
-        modelBuilder.Entity<Doctorreview>(entity =>
-        {
-            entity.HasKey(e => e.Id).HasName("PRIMARY");
-
-            entity.ToTable("doctorreviews");
-
-            entity.HasIndex(e => e.PatientId, "PatientId");
-
-            entity.HasIndex(e => new { e.DoctorId, e.Rating }, "idx_doctor_rating");
-
-            entity.HasIndex(e => e.AppointmentId, "unique_appointment_review").IsUnique();
-
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("CURRENT_TIMESTAMP")
-                .HasColumnType("timestamp");
-            entity.Property(e => e.IsAnonymous).HasDefaultValueSql("'0'");
-            entity.Property(e => e.Review).HasColumnType("text");
-            entity.Property(e => e.UpdatedAt)
-                .ValueGeneratedOnAddOrUpdate()
-                .HasDefaultValueSql("CURRENT_TIMESTAMP")
-                .HasColumnType("timestamp");
-
-            entity.HasOne(d => d.Appointment).WithOne(p => p.Doctorreview)
-                .HasForeignKey<Doctorreview>(d => d.AppointmentId)
-                .HasConstraintName("doctorreviews_ibfk_3");
-
-            entity.HasOne(d => d.Doctor).WithMany(p => p.Doctorreviews)
-                .HasForeignKey(d => d.DoctorId)
-                .HasConstraintName("doctorreviews_ibfk_1");
-
-            entity.HasOne(d => d.Patient).WithMany(p => p.Doctorreviews)
-                .HasForeignKey(d => d.PatientId)
-                .HasConstraintName("doctorreviews_ibfk_2");
-        });
-
-        modelBuilder.Entity<Doctorschedule>(entity =>
-        {
-            entity.HasKey(e => e.Id).HasName("PRIMARY");
-
-            entity.ToTable("doctorschedules");
-
-            entity.HasIndex(e => new { e.DoctorId, e.DayOfWeek }, "idx_doctor_day");
-
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("CURRENT_TIMESTAMP")
-                .HasColumnType("timestamp");
-            entity.Property(e => e.DayOfWeek).HasColumnType("enum('Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday')");
-            entity.Property(e => e.EndTime).HasColumnType("time");
-            entity.Property(e => e.IsActive).HasDefaultValueSql("'1'");
-            entity.Property(e => e.StartTime).HasColumnType("time");
 
             entity.HasOne(d => d.Doctor).WithMany(p => p.Doctorschedules)
                 .HasForeignKey(d => d.DoctorId)
@@ -343,70 +275,6 @@ public partial class MediaidbContext : DbContext
             entity.HasOne(d => d.User).WithMany(p => p.Emergencycontacts)
                 .HasForeignKey(d => d.UserId)
                 .HasConstraintName("emergencycontacts_ibfk_1");
-        });
-
-        modelBuilder.Entity<Healthtip>(entity =>
-        {
-            entity.HasKey(e => e.Id).HasName("PRIMARY");
-
-            entity.ToTable("healthtips");
-
-            entity.HasIndex(e => e.AuthorId, "AuthorId");
-
-            entity.HasIndex(e => e.Category, "idx_category");
-
-            entity.HasIndex(e => new { e.IsPublished, e.PublishedAt }, "idx_published");
-
-            entity.Property(e => e.Category).HasColumnType("enum('Nutrition','Exercise','Mental Health','Sleep','General','Prevention','Seasonal')");
-            entity.Property(e => e.Content).HasColumnType("text");
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("CURRENT_TIMESTAMP")
-                .HasColumnType("timestamp");
-            entity.Property(e => e.ImageUrl).HasMaxLength(500);
-            entity.Property(e => e.IsPublished).HasDefaultValueSql("'1'");
-            entity.Property(e => e.Likes).HasDefaultValueSql("'0'");
-            entity.Property(e => e.PublishedAt).HasColumnType("timestamp");
-            entity.Property(e => e.Source).HasMaxLength(200);
-            entity.Property(e => e.Title).HasMaxLength(200);
-            entity.Property(e => e.UpdatedAt)
-                .ValueGeneratedOnAddOrUpdate()
-                .HasDefaultValueSql("CURRENT_TIMESTAMP")
-                .HasColumnType("timestamp");
-            entity.Property(e => e.Views).HasDefaultValueSql("'0'");
-
-            entity.HasOne(d => d.Author).WithMany(p => p.Healthtips)
-                .HasForeignKey(d => d.AuthorId)
-                .OnDelete(DeleteBehavior.SetNull)
-                .HasConstraintName("healthtips_ibfk_1");
-        });
-
-        modelBuilder.Entity<Healthtipinteraction>(entity =>
-        {
-            entity.HasKey(e => e.Id).HasName("PRIMARY");
-
-            entity.ToTable("healthtipinteractions");
-
-            entity.HasIndex(e => e.HealthTipId, "HealthTipId");
-
-            entity.HasIndex(e => new { e.UserId, e.HealthTipId }, "unique_user_tip").IsUnique();
-
-            entity.Property(e => e.CreatedAt)
-                .HasDefaultValueSql("CURRENT_TIMESTAMP")
-                .HasColumnType("timestamp");
-            entity.Property(e => e.IsBookmarked).HasDefaultValueSql("'0'");
-            entity.Property(e => e.IsLiked).HasDefaultValueSql("'0'");
-            entity.Property(e => e.UpdatedAt)
-                .ValueGeneratedOnAddOrUpdate()
-                .HasDefaultValueSql("CURRENT_TIMESTAMP")
-                .HasColumnType("timestamp");
-
-            entity.HasOne(d => d.HealthTip).WithMany(p => p.Healthtipinteractions)
-                .HasForeignKey(d => d.HealthTipId)
-                .HasConstraintName("healthtipinteractions_ibfk_1");
-
-            entity.HasOne(d => d.User).WithMany(p => p.Healthtipinteractions)
-                .HasForeignKey(d => d.UserId)
-                .HasConstraintName("healthtipinteractions_ibfk_2");
         });
 
         modelBuilder.Entity<Medicalhistory>(entity =>
