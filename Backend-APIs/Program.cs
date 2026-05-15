@@ -191,23 +191,22 @@ namespace Backend_APIs
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
+    var logger = services.GetRequiredService<ILogger<Program>>();
     try
     {
         var context = services.GetRequiredService<MediaidbContext>();
-        var hasMigrations = context.Database.GetMigrations().Any();
-        if (hasMigrations)
+        if (context.Database.CanConnect())
         {
-            context.Database.Migrate();
+            logger.LogInformation("Database connection verified successfully.");
         }
         else
         {
-            context.Database.EnsureCreated();
+            logger.LogWarning("Unable to connect to the database.");
         }
     }
     catch (Exception ex)
     {
-        var logger = services.GetRequiredService<ILogger<Program>>();
-        logger.LogError(ex, "An error occurred during database synchronization.");
+        logger.LogError(ex, "An error occurred while verifying the database connection.");
     }
 }
 // ---------------------------------------------
