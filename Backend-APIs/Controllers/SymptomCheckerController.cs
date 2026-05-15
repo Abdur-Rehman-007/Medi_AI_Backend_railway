@@ -1,5 +1,6 @@
 using Backend_APIs.DTOs;
 using Backend_APIs.Models;
+using Backend_APIs.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -14,14 +15,16 @@ namespace Backend_APIs.Controllers
     public class SymptomCheckerController : ControllerBase
     {
         private readonly MediaidbContext _context;
+        private readonly IGeminiAiService _geminiAiService;
 
-        public SymptomCheckerController(MediaidbContext context)
+        public SymptomCheckerController(MediaidbContext context, IGeminiAiService geminiAiService)
         {
             _context = context;
+            _geminiAiService = geminiAiService;
         }
 
         [HttpPost("analyze")]
-        public async Task<ActionResult<SymptomCheckResponseDto>> AnalyzeSymptoms([FromBody] AnalyzeSymptomsDto request)
+        public async Task<ActionResult<SymptomCheckResponseDto>> AnalyzeSymptoms([FromBody] AnalyzeSymptomsDto request, CancellationToken cancellationToken)
         {
             try
             {
@@ -29,46 +32,55 @@ namespace Backend_APIs.Controllers
                 if (userIdClaim == null) return Unauthorized(new ApiResponse<object> { Success = false, Message = "Invalid token", Data = null, Errors = null });
                 var userId = int.Parse(userIdClaim.Value);
 
-                // combine symptoms for storage
-                var allSymptomsList = new List<string>(request.SelectedSymptoms);
-                if (!string.IsNullOrWhiteSpace(request.AdditionalDescription))
+                // Call real AI service
+                var aiRequest = new AiAnalyzeRequestDto
                 {
-                    allSymptomsList.Add(request.AdditionalDescription);
-                }
-                var symptomsString = string.Join(", ", allSymptomsList);
+                    SelectedSymptoms = request.SelectedSymptoms,
+                    AdditionalDescription = request.AdditionalDescription,
+                    Question = request.Question
+                };
 
-                // --- MOCK AI LOGIC (Replace with real Python/AI Service call later) ---
-                var mockResult = MockAIAnalysis(allSymptomsList);
-                // ---------------------------------------------------------------------
+                var aiResult = await _geminiAiService.AnalyzeAsync(aiRequest, cancellationToken);
 
                 var symptomCheck = new Symptomcheck
                 {
                     UserId = userId,
-                    Symptoms = symptomsString,
-                    Duration = "Unknown", // Frontend could provide this
-                    Severity = mockResult.Severity,
-                    Airesponse = mockResult.Condition, // Storing main condition in Airesponse
-                    Confidence = mockResult.Confidence,
-                    RecommendedAction = JsonSerializer.Serialize(new
+                    Symptoms = JsonSerializer.Serialize(request.SelectedSymptoms),
+                    Duration = "Unknown",
+                    Severity = aiResult.Severity,
+                    Airesponse = JsonSerializer.Serialize(new
                     {
-                        Recommendations = mockResult.Recommendations,
-                        Warnings = mockResult.WarningSigns
+                        aiResult.Condition,
+                        aiResult.Answer,
+                        aiResult.Recommendations,
+                        aiResult.WarningSigns
                     }),
+                    Confidence = (decimal?)aiResult.Confidence,
+                    RecommendedAction = TruncateString(string.Join(", ", aiResult.Recommendations), 200),
                     CreatedAt = DateTime.UtcNow
                 };
 
                 _context.Symptomchecks.Add(symptomCheck);
-                await _context.SaveChangesAsync();
+                await _context.SaveChangesAsync(cancellationToken);
 
-                mockResult.Id = symptomCheck.Id;
-                mockResult.Symptoms = symptomsString;
-                mockResult.CreatedAt = symptomCheck.CreatedAt ?? DateTime.UtcNow;
+                var response = new SymptomCheckResponseDto
+                {
+                    Id = symptomCheck.Id,
+                    Symptoms = symptomCheck.Symptoms,
+                    Condition = aiResult.Condition,
+                    Confidence = (decimal)aiResult.Confidence,
+                    Severity = aiResult.Severity,
+                    Recommendations = aiResult.Recommendations,
+                    WarningSigns = aiResult.WarningSigns,
+                    Answer = aiResult.Answer,
+                    CreatedAt = symptomCheck.CreatedAt ?? DateTime.UtcNow
+                };
 
                 return Ok(new ApiResponse<SymptomCheckResponseDto>
                 {
                     Success = true,
                     Message = "Analysis complete",
-                    Data = mockResult
+                    Data = response
                 });
             }
             catch (Exception ex)
@@ -97,16 +109,25 @@ namespace Backend_APIs.Controllers
 
                 var response = history.Select(h =>
                 {
-                    var actions = ParseActions(h.RecommendedAction);
+                    var aiData = ParseFullAiResponse(h.Airesponse);
+
+                    // Fallback for Recommendations if not in AIResponse JSON
+                    var recommendations = aiData.Recommendations;
+                    if (recommendations.Count == 0 && !string.IsNullOrWhiteSpace(h.RecommendedAction))
+                    {
+                        recommendations = h.RecommendedAction.Split(", ", StringSplitOptions.RemoveEmptyEntries).ToList();
+                    }
+
                     return new SymptomCheckResponseDto
                     {
                         Id = h.Id,
-                        Symptoms = h.Symptoms,
-                        Condition = h.Airesponse ?? "Unknown",
+                        Symptoms = ParseSymptoms(h.Symptoms),
+                        Condition = aiData.Condition,
+                        Answer = aiData.Answer,
                         Confidence = h.Confidence ?? 0,
                         Severity = h.Severity ?? "Unknown",
-                        Recommendations = actions.Recommendations,
-                        WarningSigns = actions.Warnings,
+                        Recommendations = recommendations,
+                        WarningSigns = aiData.WarningSigns,
                         CreatedAt = h.CreatedAt ?? DateTime.UtcNow
                     };
                 });
@@ -128,70 +149,61 @@ namespace Backend_APIs.Controllers
             }
         }
 
-        private SymptomCheckResponseDto MockAIAnalysis(List<string> symptoms)
+        private static string TruncateString(string value, int maxLength)
         {
-            // Simple keyword matching mock
-            var s = string.Join(" ", symptoms).ToLower();
-
-            if (s.Contains("chest pain") || s.Contains("shortness of breath"))
-            {
-                return new SymptomCheckResponseDto
-                {
-                    Condition = "Potential Cardiac Issue",
-                    Confidence = 95,
-                    Severity = "High",
-                    Recommendations = new List<string> { "Seek immediate medical attention", "Do not drive yourself" },
-                    WarningSigns = new List<string> { "Loss of consciousness", "Crushing chest pain" }
-                };
-            }
-            if (s.Contains("fever") && s.Contains("cough"))
-            {
-                return new SymptomCheckResponseDto
-                {
-                    Condition = "Viral Infection / Flu",
-                    Confidence = 85,
-                    Severity = "Moderate",
-                    Recommendations = new List<string> { "Rest", "Hydration", "Monitor temperature" },
-                    WarningSigns = new List<string> { "Difficulty breathing", "High fever > 103F" }
-                };
-            }
-
-            return new SymptomCheckResponseDto
-            {
-                Condition = "General Malaise",
-                Confidence = 70,
-                Severity = "Low",
-                Recommendations = new List<string> { "Rest", "Monitor symptoms" },
-                WarningSigns = new List<string> { "Symptoms worsen" }
-            };
+            if (string.IsNullOrEmpty(value)) return value;
+            return value.Length <= maxLength ? value : value.Substring(0, maxLength);
         }
 
-        private (List<string> Recommendations, List<string> Warnings) ParseActions(string? json)
+        private static (string Condition, string Answer, List<string> Recommendations, List<string> WarningSigns) ParseFullAiResponse(string? json)
         {
-            if (string.IsNullOrEmpty(json)) return (new List<string>(), new List<string>());
+            var result = (Condition: "Unknown", Answer: "No details available", Recommendations: new List<string>(), WarningSigns: new List<string>());
+
+            if (string.IsNullOrWhiteSpace(json)) return result;
+
             try
             {
                 var doc = JsonDocument.Parse(json);
                 var root = doc.RootElement;
 
-                var recs = new List<string>();
-                if (root.TryGetProperty("Recommendations", out var recProp))
+                if (root.TryGetProperty("Condition", out var c)) result.Condition = c.GetString() ?? "Unknown";
+                if (root.TryGetProperty("Answer", out var a)) result.Answer = a.GetString() ?? "No details available";
+
+                if (root.TryGetProperty("Recommendations", out var recs) && recs.ValueKind == JsonValueKind.Array)
                 {
-                    foreach (var item in recProp.EnumerateArray()) recs.Add(item.GetString() ?? "");
+                    foreach (var item in recs.EnumerateArray()) result.Recommendations.Add(item.GetString() ?? "");
                 }
 
-                var warns = new List<string>();
-                if (root.TryGetProperty("Warnings", out var warnProp))
+                if (root.TryGetProperty("WarningSigns", out var warns) && warns.ValueKind == JsonValueKind.Array)
                 {
-                    foreach (var item in warnProp.EnumerateArray()) warns.Add(item.GetString() ?? "");
+                    foreach (var item in warns.EnumerateArray()) result.WarningSigns.Add(item.GetString() ?? "");
                 }
 
-                return (recs, warns);
+                return result;
             }
             catch
             {
-                return (new List<string> { json }, new List<string>());
+                result.Condition = json ?? "Unknown";
+                return result;
             }
+        }
+
+        private static string ParseSymptoms(string symptoms)
+        {
+            if (string.IsNullOrWhiteSpace(symptoms)) return "";
+            if (symptoms.TrimStart().StartsWith("["))
+            {
+                try
+                {
+                    var list = JsonSerializer.Deserialize<List<string>>(symptoms);
+                    return list != null ? string.Join(", ", list) : symptoms;
+                }
+                catch
+                {
+                    return symptoms;
+                }
+            }
+            return symptoms;
         }
     }
 }
