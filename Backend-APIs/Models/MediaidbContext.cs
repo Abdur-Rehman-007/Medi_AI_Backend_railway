@@ -88,6 +88,16 @@ public partial class MediaidbContext : DbContext
             entity.Property(e => e.Times).HasColumnType("json");
         });
 
+        modelBuilder.Entity<Doctorperformancesummary>(entity =>
+        {
+            entity
+                .HasNoKey()
+                .ToView("doctorperformancesummary");
+
+            entity.Property(e => e.DoctorName).HasMaxLength(100);
+            entity.Property(e => e.Specialization).HasMaxLength(100);
+        });
+
         modelBuilder.Entity<Appointment>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("PRIMARY");
@@ -222,6 +232,25 @@ public partial class MediaidbContext : DbContext
                 .HasConstraintName("doctorleaves_ibfk_1");
         });
 
+        modelBuilder.Entity<Doctorschedule>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PRIMARY");
+
+            entity.ToTable("doctorschedules");
+
+            entity.HasIndex(e => new { e.DoctorId, e.DayOfWeek }, "idx_doctorschedules_day");
+
+            entity.HasIndex(e => new { e.DoctorId, e.DayOfWeek }, "uq_doctorschedules_doctor_day")
+                .IsUnique();
+
+            entity.Property(e => e.DayOfWeek)
+                .HasColumnType("enum('Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday')");
+            entity.Property(e => e.StartTime).HasColumnType("time");
+            entity.Property(e => e.EndTime).HasColumnType("time");
+            entity.Property(e => e.IsActive).HasDefaultValueSql("'1'");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP")
+                .HasColumnType("timestamp");
 
             entity.HasOne(d => d.Doctor).WithMany(p => p.Doctorschedules)
                 .HasForeignKey(d => d.DoctorId)

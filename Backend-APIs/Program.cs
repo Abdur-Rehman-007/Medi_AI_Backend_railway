@@ -23,7 +23,7 @@ namespace Backend_APIs
             }
 
             // Add MySQL DbContext
-            var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+            var connectionString = BuildMySqlConnectionString(builder.Configuration);
             if (string.IsNullOrWhiteSpace(connectionString))
             {
                 throw new InvalidOperationException("ConnectionStrings:DefaultConnection is not configured.");
@@ -194,12 +194,15 @@ using (var scope = app.Services.CreateScope())
     try
     {
         var context = services.GetRequiredService<MediaidbContext>();
-        
-        // Option A: If you use Migrations (Recommended)
-        context.Database.Migrate(); 
-        
-        // Option B: If you just want the tables created without migration history
-        // context.Database.EnsureCreated(); 
+        var hasMigrations = context.Database.GetMigrations().Any();
+        if (hasMigrations)
+        {
+            context.Database.Migrate();
+        }
+        else
+        {
+            context.Database.EnsureCreated();
+        }
     }
     catch (Exception ex)
     {
@@ -211,6 +214,40 @@ using (var scope = app.Services.CreateScope())
 
 
             app.Run();
+        }
+
+        private static string BuildMySqlConnectionString(IConfiguration configuration)
+        {
+            var mysqlUrl = Environment.GetEnvironmentVariable("MYSQL_URL")
+                ?? Environment.GetEnvironmentVariable("DATABASE_URL");
+
+            if (!string.IsNullOrWhiteSpace(mysqlUrl))
+            {
+                var uri = new Uri(mysqlUrl);
+                var userInfo = uri.UserInfo.Split(':', 2);
+                var user = userInfo.Length > 0 ? Uri.UnescapeDataString(userInfo[0]) : string.Empty;
+                var password = userInfo.Length > 1 ? Uri.UnescapeDataString(userInfo[1]) : string.Empty;
+                var database = uri.AbsolutePath.TrimStart('/');
+                var port = uri.Port > 0 ? uri.Port : 3306;
+
+                return $"Server={uri.Host};Port={port};Database={database};User ID={user};Password={password};";
+            }
+
+            var host = Environment.GetEnvironmentVariable("MYSQLHOST");
+            var portValue = Environment.GetEnvironmentVariable("MYSQLPORT");
+            var databaseName = Environment.GetEnvironmentVariable("MYSQLDATABASE");
+            var userName = Environment.GetEnvironmentVariable("MYSQLUSER");
+            var passwordValue = Environment.GetEnvironmentVariable("MYSQLPASSWORD");
+
+            if (!string.IsNullOrWhiteSpace(host)
+                && !string.IsNullOrWhiteSpace(databaseName)
+                && !string.IsNullOrWhiteSpace(userName))
+            {
+                var port = string.IsNullOrWhiteSpace(portValue) ? "3306" : portValue;
+                return $"Server={host};Port={port};Database={databaseName};User ID={userName};Password={passwordValue};";
+            }
+
+            return configuration.GetConnectionString("DefaultConnection") ?? string.Empty;
         }
     }
 }
