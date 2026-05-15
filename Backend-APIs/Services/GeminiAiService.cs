@@ -33,7 +33,7 @@ Return ONLY valid JSON with this exact schema:
 {{
     ""condition"": ""string"",
     ""confidence"": 0,
-    ""severity"": ""Low|Moderate|High"",
+    ""severity"": ""Mild|Moderate|Severe"",
     ""recommendations"": [""string""],
     ""warningSigns"": [""string""],
     ""answer"": ""short plain language response""
@@ -171,9 +171,9 @@ Keep advice general and safe. Never provide a final diagnosis.";
             var value = (severity ?? string.Empty).Trim().ToLowerInvariant();
             return value switch
             {
-                "high" or "severe" => "High",
+                "high" or "severe" => "Severe",
                 "moderate" or "medium" => "Moderate",
-                _ => "Low"
+                _ => "Mild"
             };
         }
 
@@ -186,7 +186,7 @@ Keep advice general and safe. Never provide a final diagnosis.";
                 {
                     Condition = "Possible urgent condition",
                     Confidence = 90,
-                    Severity = "High",
+                    Severity = "Severe",
                     Recommendations = new List<string>
                     {
                         "Seek immediate in-person medical evaluation.",
@@ -206,7 +206,7 @@ Keep advice general and safe. Never provide a final diagnosis.";
             {
                 Condition = "General Health Guidance",
                 Confidence = 65,
-                Severity = "Low",
+                Severity = "Mild",
                 Recommendations = new List<string>
                 {
                     "Rest and hydrate.",
