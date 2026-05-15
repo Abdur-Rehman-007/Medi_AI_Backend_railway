@@ -222,6 +222,12 @@ public partial class MediaidbContext : DbContext
                 .HasConstraintName("doctorleaves_ibfk_1");
         });
 
+
+            entity.HasOne(d => d.Doctor).WithMany(p => p.Doctorschedules)
+                .HasForeignKey(d => d.DoctorId)
+                .HasConstraintName("fk_doctorschedules_doctor");
+        });
+
         modelBuilder.Entity<Emailverificationotp>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("PRIMARY");
