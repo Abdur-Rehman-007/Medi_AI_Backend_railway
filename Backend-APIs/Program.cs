@@ -187,31 +187,24 @@ namespace Backend_APIs
             app.UseAuthorization();
 
             app.MapControllers();
-// --- ADD THIS BLOCK JUST BEFORE app.Run(); ---
-using (var scope = app.Services.CreateScope())
-{
-    var services = scope.ServiceProvider;
-    try
-    {
-        var context = services.GetRequiredService<MediaidbContext>();
-        var hasMigrations = context.Database.GetMigrations().Any();
-        if (hasMigrations)
-        {
-            context.Database.Migrate();
-        }
-        else
-        {
-            context.Database.EnsureCreated();
-        }
-    }
-    catch (Exception ex)
-    {
-        var logger = services.GetRequiredService<ILogger<Program>>();
-        logger.LogError(ex, "An error occurred during database synchronization.");
-    }
-}
-// ---------------------------------------------
+            // --- SAFE DATABASE MIGRATION BLOCK ---
+            using (var scope = app.Services.CreateScope())
+            {
+                var services = scope.ServiceProvider;
+                try
+                {
+                    var context = services.GetRequiredService<MediaidbContext>();
 
+                    // This applies new migrations safely without dropping existing data
+                    context.Database.Migrate();
+                }
+                catch (Exception ex)
+                {
+                    var logger = services.GetRequiredService<ILogger<Program>>();
+                    logger.LogError(ex, "An error occurred during database synchronization.");
+                }
+            }
+            // -------------------------------------
 
             app.Run();
         }
