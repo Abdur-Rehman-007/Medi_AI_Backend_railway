@@ -321,6 +321,7 @@ namespace Backend_APIs.Controllers
         /// Refresh access token using a valid refresh token.
         /// </summary>
         [HttpPost("refresh-token")]
+        [AllowAnonymous]
         public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenDto request)
         {
             if (!ModelState.IsValid)
