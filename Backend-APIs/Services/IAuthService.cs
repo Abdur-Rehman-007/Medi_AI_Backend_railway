@@ -15,5 +15,8 @@ namespace Backend_APIs.Services
 
         // OTP Management
         Task<(bool Success, string Message)> ResendOtpAsync(ResendOtpDto resendOtpDto);
+
+        // Silent token refresh
+        Task<DTOs.ApiResponse<DTOs.AuthResponseDto>> RefreshTokenAsync(DTOs.RefreshTokenDto request);
     }
 }

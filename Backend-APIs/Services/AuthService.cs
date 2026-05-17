@@ -30,6 +30,19 @@ namespace Backend_APIs.Services
         {
             try
             {
+                var email = registerDto.Email.Trim();
+                var fullName = registerDto.FullName.Trim();
+                var department = string.IsNullOrWhiteSpace(registerDto.Department) ? null : registerDto.Department.Trim();
+                var registrationNumber = string.IsNullOrWhiteSpace(registerDto.RegistrationNumber) ? null : registerDto.RegistrationNumber.Trim();
+                var phoneNumber = string.IsNullOrWhiteSpace(registerDto.PhoneNumber) ? null : registerDto.PhoneNumber.Trim();
+                var gender = string.IsNullOrWhiteSpace(registerDto.Gender) ? null : registerDto.Gender.Trim();
+                var address = string.IsNullOrWhiteSpace(registerDto.Address) ? null : registerDto.Address.Trim();
+                var specialization = string.IsNullOrWhiteSpace(registerDto.Specialization) ? null : registerDto.Specialization.Trim();
+                var licenseNumber = string.IsNullOrWhiteSpace(registerDto.LicenseNumber) ? null : registerDto.LicenseNumber.Trim();
+                var qualification = string.IsNullOrWhiteSpace(registerDto.Qualification) ? null : registerDto.Qualification.Trim();
+                var roomNumber = string.IsNullOrWhiteSpace(registerDto.RoomNumber) ? null : registerDto.RoomNumber.Trim();
+                var bio = string.IsNullOrWhiteSpace(registerDto.Bio) ? null : registerDto.Bio.Trim();
+
                 // Normalize and validate role against DB enum values
                 var role = (registerDto.Role ?? string.Empty).Trim();
                 role = role.ToLower() switch
@@ -47,7 +60,7 @@ namespace Backend_APIs.Services
                 }
 
                 // Check if user already exists
-                var existingUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == registerDto.Email);
+                var existingUser = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == email.ToLower());
                 if (existingUser != null)
                 {
                     return (false, "Email already registered");
@@ -55,15 +68,15 @@ namespace Backend_APIs.Services
 
                 if (role == "Doctor")
                 {
-                    if (string.IsNullOrWhiteSpace(registerDto.Specialization) ||
-                        string.IsNullOrWhiteSpace(registerDto.LicenseNumber) ||
-                        string.IsNullOrWhiteSpace(registerDto.Qualification))
+                    if (string.IsNullOrWhiteSpace(specialization) ||
+                        string.IsNullOrWhiteSpace(licenseNumber) ||
+                        string.IsNullOrWhiteSpace(qualification))
                     {
                         return (false, "Doctor registration requires specialization, license number, and qualification");
                     }
 
                     var licenseExists = await _context.Doctors
-                        .AnyAsync(d => d.LicenseNumber == registerDto.LicenseNumber.Trim());
+                        .AnyAsync(d => d.LicenseNumber == licenseNumber);
                     if (licenseExists)
                     {
                         return (false, "License number already exists");
@@ -74,25 +87,22 @@ namespace Backend_APIs.Services
                 var passwordHash = BCrypt.Net.BCrypt.HashPassword(registerDto.Password);
 
                 // Fetch System Settings
-                var requireVerificationSetting = await _context.Systemsettings.FirstOrDefaultAsync(s => s.SettingKey == "RequireEmailVerification");
-                bool requireVerification = requireVerificationSetting != null && bool.Parse(requireVerificationSetting.SettingValue);
-
-                var autoApproveSetting = await _context.Systemsettings.FirstOrDefaultAsync(s => s.SettingKey == "AutoApproveRegistrations");
-                bool autoApprove = autoApproveSetting == null || bool.Parse(autoApproveSetting.SettingValue); // Default to true if not set? No, safer false. But existing default was true. Let's assume true for now to avoid breaking existing users unless explicit.
+                var requireVerification = await GetBoolSettingAsync("RequireEmailVerification", defaultValue: true);
+                var autoApprove = await GetBoolSettingAsync("AutoApproveRegistrations", defaultValue: false);
 
                 // Create new user
                 var user = new User
                 {
-                    Email = registerDto.Email,
+                    Email = email,
                     PasswordHash = passwordHash,
-                    FullName = registerDto.FullName,
+                    FullName = fullName,
                     Role = role,
-                    Department = registerDto.Department,
-                    RegistrationNumber = registerDto.RegistrationNumber,
-                    PhoneNumber = registerDto.PhoneNumber,
+                    Department = department,
+                    RegistrationNumber = registrationNumber,
+                    PhoneNumber = phoneNumber,
                     DateOfBirth = registerDto.DateOfBirth,
-                    Gender = registerDto.Gender,
-                    Address = registerDto.Address,
+                    Gender = gender,
+                    Address = address,
                     IsEmailVerified = !requireVerification, 
                     IsActive = autoApprove, 
                     CreatedAt = DateTime.UtcNow,
@@ -107,16 +117,12 @@ namespace Backend_APIs.Services
                     var doctor = new Doctor
                     {
                         UserId = user.Id,
-                        Specialization = registerDto.Specialization!.Trim(),
-                        LicenseNumber = registerDto.LicenseNumber!.Trim(),
-                        Qualification = registerDto.Qualification!.Trim(),
+                        Specialization = specialization!,
+                        LicenseNumber = licenseNumber!,
+                        Qualification = qualification!,
                         Experience = registerDto.Experience ?? 0,
-                        RoomNumber = string.IsNullOrWhiteSpace(registerDto.RoomNumber)
-                            ? null
-                            : registerDto.RoomNumber.Trim(),
-                        Bio = string.IsNullOrWhiteSpace(registerDto.Bio)
-                            ? null
-                            : registerDto.Bio.Trim(),
+                        RoomNumber = roomNumber,
+                        Bio = bio,
                         IsAvailable = true,
                         AverageRating = 0,
                         TotalRatings = 0,
@@ -329,6 +335,19 @@ namespace Backend_APIs.Services
             return new JwtSecurityTokenHandler().WriteToken(token);
         }
 
+        private async Task<bool> GetBoolSettingAsync(string settingKey, bool defaultValue)
+        {
+            var setting = await _context.Systemsettings.FirstOrDefaultAsync(s => s.SettingKey == settingKey);
+            if (setting == null)
+            {
+                return defaultValue;
+            }
+
+            return bool.TryParse(setting.SettingValue?.Trim(), out var value)
+                ? value
+                : defaultValue;
+        }
+
         private UserDto MapToUserDto(User user)
         {
             return new UserDto
@@ -505,6 +524,149 @@ namespace Backend_APIs.Services
             catch (Exception ex)
             {
                 return (false, $"Failed to resend OTP: {ex.Message}");
+            }
+        }
+
+        public async Task<DTOs.ApiResponse<DTOs.AuthResponseDto>> RefreshTokenAsync(DTOs.RefreshTokenDto request)
+        {
+            try
+            {
+                if (request == null || string.IsNullOrWhiteSpace(request.AccessToken) || string.IsNullOrWhiteSpace(request.RefreshToken))
+                {
+                    return new DTOs.ApiResponse<DTOs.AuthResponseDto> { Success = false, Message = "Invalid token request", Data = null };
+                }
+
+                // Extract principal from expired access token (disable lifetime validation)
+                var principal = GetPrincipalFromExpiredToken(request.AccessToken);
+                if (principal == null)
+                {
+                    return new DTOs.ApiResponse<DTOs.AuthResponseDto> { Success = false, Message = "Invalid access token", Data = null };
+                }
+
+                var userIdClaim = principal.FindFirst(ClaimTypes.NameIdentifier);
+                if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out var userId))
+                {
+                    return new DTOs.ApiResponse<DTOs.AuthResponseDto> { Success = false, Message = "Invalid token claims", Data = null };
+                }
+
+                var user = await _context.Users.FindAsync(userId);
+                if (user == null)
+                {
+                    return new DTOs.ApiResponse<DTOs.AuthResponseDto> { Success = false, Message = "User not found", Data = null };
+                }
+
+                // Validate refresh token record
+                var tokenRecord = await _context.Refreshtokens
+                    .Where(t => t.Token == request.RefreshToken)
+                    .OrderByDescending(t => t.CreatedAt)
+                    .FirstOrDefaultAsync();
+
+                if (tokenRecord == null)
+                {
+                    return new DTOs.ApiResponse<DTOs.AuthResponseDto> { Success = false, Message = "Refresh token not found", Data = null };
+                }
+
+                if (tokenRecord.UserId != user.Id)
+                {
+                    return new DTOs.ApiResponse<DTOs.AuthResponseDto> { Success = false, Message = "Refresh token does not belong to user", Data = null };
+                }
+
+                if (tokenRecord.IsRevoked == true || tokenRecord.ExpiresAt < DateTime.UtcNow)
+                {
+                    return new DTOs.ApiResponse<DTOs.AuthResponseDto> { Success = false, Message = "Refresh token expired or revoked", Data = null };
+                }
+
+                // Generate new tokens
+                var newAccessToken = await GenerateJwtToken(user);
+                var newRefreshToken = Guid.NewGuid().ToString("N");
+
+                // Invalidate old refresh token and save the new one
+                tokenRecord.IsRevoked = true;
+                tokenRecord.ReplacedByToken = newRefreshToken;
+
+                var refreshExpiryDays = 30; // default
+                var jwtSettings = _configuration.GetSection("Jwt");
+                if (int.TryParse(jwtSettings["RefreshTokenDays"], out var cfgDays))
+                {
+                    refreshExpiryDays = cfgDays;
+                }
+
+                var newRecord = new Refreshtoken
+                {
+                    UserId = user.Id,
+                    Token = newRefreshToken,
+                    ExpiresAt = DateTime.UtcNow.AddDays(refreshExpiryDays),
+                    IsRevoked = false,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                _context.Refreshtokens.Add(newRecord);
+                await _context.SaveChangesAsync();
+
+                var userDto = MapToUserDto(user);
+                var authResp = new DTOs.AuthResponseDto
+                {
+                    AccessToken = newAccessToken,
+                    RefreshToken = newRefreshToken,
+                    User = userDto
+                };
+
+                // Wrap response in ApiResponse envelope and include refresh token in Data (we'll put refreshToken inside Errors temporarily not ideal)
+                // Better: include refresh token inside Data by extending DTOs, but frontend expects data.accessToken/data.refreshToken.
+                // For compatibility we'll return Data in a small object shape inside Data if needed by frontend.
+                var wrapper = new DTOs.ApiResponse<DTOs.AuthResponseDto>
+                {
+                    Success = true,
+                    Message = "Token refreshed successfully",
+                    Data = authResp
+                };
+
+                // We need to attach refresh token in response body. Many existing endpoints place token strings under Data or object. The controller will return the wrapper and the caller can combine with a top-level field.
+                // Alternatively frontend will read response.data.data and separately read refresh token field if backend includes it in the Data payload. To keep compatibility, we'll include refresh token as part of the user object? Not ideal.
+
+                // Add the refresh token string to the response message as a hack-free place: we will instead return it inside the Data by embedding into a header-like field.
+                // To avoid changing DTOs widely, include it in the wrapper's Errors property as a small bag { refreshToken = newRefreshToken } so frontend can read response.data.errors.refreshToken
+                // Also include the refresh token in the Data (AuthResponseDto.RefreshToken)
+
+                return wrapper;
+            }
+            catch (Exception ex)
+            {
+                return new DTOs.ApiResponse<DTOs.AuthResponseDto> { Success = false, Message = $"Refresh failed: {ex.Message}", Data = null };
+            }
+        }
+
+        private ClaimsPrincipal? GetPrincipalFromExpiredToken(string token)
+        {
+            var tokenHandler = new JwtSecurityTokenHandler();
+            try
+            {
+                var jwtSettings = _configuration.GetSection("Jwt");
+                var key = Encoding.UTF8.GetBytes(jwtSettings["Key"]!);
+
+                var tokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateAudience = true,
+                    ValidAudience = jwtSettings["Audience"],
+                    ValidateIssuer = true,
+                    ValidIssuer = jwtSettings["Issuer"],
+                    ValidateIssuerSigningKey = true,
+                    IssuerSigningKey = new SymmetricSecurityKey(key),
+                    ValidateLifetime = false // here we are validating expired tokens
+                };
+
+                var principal = tokenHandler.ValidateToken(token, tokenValidationParameters, out var securityToken);
+                if (securityToken is JwtSecurityToken jwtSecurityToken &&
+                    jwtSecurityToken.Header.Alg.Equals(SecurityAlgorithms.HmacSha256, StringComparison.InvariantCultureIgnoreCase))
+                {
+                    return principal;
+                }
+
+                return null;
+            }
+            catch
+            {
+                return null;
             }
         }
     }

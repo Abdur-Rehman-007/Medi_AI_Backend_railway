@@ -45,6 +45,7 @@ public partial class MediaidbContext : DbContext
     public virtual DbSet<Notification> Notifications { get; set; }
 
     public virtual DbSet<Passwordresettoken> Passwordresettokens { get; set; }
+    public virtual DbSet<Refreshtoken> Refreshtokens { get; set; }
 
     public virtual DbSet<Prescription> Prescriptions { get; set; }
 
@@ -428,6 +429,29 @@ public partial class MediaidbContext : DbContext
             entity.HasOne(d => d.User).WithMany(p => p.Passwordresettokens)
                 .HasForeignKey(d => d.UserId)
                 .HasConstraintName("passwordresettokens_ibfk_1");
+        });
+
+        modelBuilder.Entity<Refreshtoken>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PRIMARY");
+
+            entity.ToTable("refreshtokens");
+
+            entity.HasIndex(e => e.Token, "idx_refreshtokens_token");
+
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP")
+                .HasColumnType("timestamp");
+
+            entity.Property(e => e.ExpiresAt).HasColumnType("timestamp");
+
+            entity.Property(e => e.IsRevoked).HasDefaultValueSql("'0'");
+
+            entity.Property(e => e.ReplacedByToken).HasMaxLength(200);
+
+            entity.HasOne(d => d.User).WithMany(p => p.Refreshtokens)
+                .HasForeignKey(d => d.UserId)
+                .HasConstraintName("refreshtokens_ibfk_1");
         });
 
         modelBuilder.Entity<Prescription>(entity =>

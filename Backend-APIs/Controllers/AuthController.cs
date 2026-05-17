@@ -318,6 +318,31 @@ namespace Backend_APIs.Controllers
         }
 
         /// <summary>
+        /// Refresh access token using a valid refresh token.
+        /// </summary>
+        [HttpPost("refresh-token")]
+        public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenDto request)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = "Invalid request data",
+                    Data = ModelState
+                });
+            }
+
+            var result = await _authService.RefreshTokenAsync(request);
+            if (!result.Success)
+            {
+                return BadRequest(result);
+            }
+
+            return Ok(result);
+        }
+
+        /// <summary>
         /// Map UserDto to UserResponseDto with Flutter-friendly naming
         /// </summary>
         private UserResponseDto MapToUserResponseDto(UserDto user)
