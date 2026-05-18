@@ -187,6 +187,12 @@ namespace Backend_APIs
             app.UseAuthorization();
 
             app.MapControllers();
+            app.MapGet("/", () => Results.Ok(new
+            {
+                status = "Healthy",
+                message = "Medi-AI Backend is running perfectly."
+            }));
+
             // --- SAFE DATABASE MIGRATION BLOCK ---
             using (var scope = app.Services.CreateScope())
             {
