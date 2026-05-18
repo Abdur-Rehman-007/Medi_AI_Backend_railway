@@ -556,7 +556,7 @@ namespace Backend_APIs.Services
                 }
 
                 // Validate refresh token record
-                var tokenRecord = await _context.Refreshtokens
+                var tokenRecord = await _context.RefreshTokens
                     .Where(t => t.Token == request.RefreshToken)
                     .OrderByDescending(t => t.CreatedAt)
                     .FirstOrDefaultAsync();
@@ -600,7 +600,7 @@ namespace Backend_APIs.Services
                     CreatedAt = DateTime.UtcNow
                 };
 
-                _context.Refreshtokens.Add(newRecord);
+                _context.RefreshTokens.Add(newRecord);
                 await _context.SaveChangesAsync();
 
                 var userDto = MapToUserDto(user);

@@ -1415,7 +1415,7 @@ namespace Backend_APIs.Migrations
             modelBuilder.Entity("Backend_APIs.Models.Refreshtoken", b =>
                 {
                     b.HasOne("Backend_APIs.Models.User", "User")
-                        .WithMany("Refreshtokens")
+                        .WithMany("RefreshTokens")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
@@ -1511,7 +1511,7 @@ namespace Backend_APIs.Migrations
 
                     b.Navigation("Passwordresettokens");
 
-                    b.Navigation("Refreshtokens");
+                    b.Navigation("RefreshTokens");
 
                     b.Navigation("Reports");
 

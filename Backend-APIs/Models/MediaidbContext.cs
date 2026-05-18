@@ -45,7 +45,7 @@ public partial class MediaidbContext : DbContext
     public virtual DbSet<Notification> Notifications { get; set; }
 
     public virtual DbSet<Passwordresettoken> Passwordresettokens { get; set; }
-    public virtual DbSet<Refreshtoken> Refreshtokens { get; set; }
+    public virtual DbSet<Refreshtoken> RefreshTokens { get; set; }
 
     public virtual DbSet<Prescription> Prescriptions { get; set; }
 
@@ -449,7 +449,7 @@ public partial class MediaidbContext : DbContext
 
             entity.Property(e => e.ReplacedByToken).HasMaxLength(200);
 
-            entity.HasOne(d => d.User).WithMany(p => p.Refreshtokens)
+            entity.HasOne(d => d.User).WithMany(p => p.RefreshTokens)
                 .HasForeignKey(d => d.UserId)
                 .HasConstraintName("refreshtokens_ibfk_1");
         });
