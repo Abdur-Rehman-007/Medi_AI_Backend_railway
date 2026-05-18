@@ -25,9 +25,17 @@ namespace Backend_APIs.Controllers
         {
             try
             {
-                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
-                if (userIdClaim == null) return Unauthorized(new ApiResponse<object> { Success = false, Message = "Invalid token", Data = null, Errors = null });
-                var userId = int.Parse(userIdClaim.Value);
+                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (!int.TryParse(userIdClaim, out var userId))
+                {
+                    return Unauthorized(new ApiResponse<object>
+                    {
+                        Success = false,
+                        Message = "Invalid token",
+                        Data = null,
+                        Errors = null
+                    });
+                }
 
                 // combine symptoms for storage
                 var allSymptomsList = new List<string>(request.SelectedSymptoms);
@@ -35,19 +43,28 @@ namespace Backend_APIs.Controllers
                 {
                     allSymptomsList.Add(request.AdditionalDescription);
                 }
-                var symptomsString = string.Join(", ", allSymptomsList);
+                var symptomsJson = JsonSerializer.Serialize(allSymptomsList);
 
                 // --- MOCK AI LOGIC (Replace with real Python/AI Service call later) ---
                 var mockResult = MockAIAnalysis(allSymptomsList);
                 // ---------------------------------------------------------------------
 
+                var aiResponseJson = JsonSerializer.Serialize(new
+                {
+                    condition = mockResult.Condition,
+                    confidence = mockResult.Confidence,
+                    severity = mockResult.Severity,
+                    recommendations = mockResult.Recommendations,
+                    warningSigns = mockResult.WarningSigns
+                });
+
                 var symptomCheck = new Symptomcheck
                 {
                     UserId = userId,
-                    Symptoms = symptomsString,
+                    Symptoms = symptomsJson,
                     Duration = "Unknown", // Frontend could provide this
                     Severity = mockResult.Severity,
-                    Airesponse = mockResult.Condition, // Storing main condition in Airesponse
+                    Airesponse = aiResponseJson,
                     Confidence = mockResult.Confidence,
                     RecommendedAction = JsonSerializer.Serialize(new
                     {
@@ -61,7 +78,7 @@ namespace Backend_APIs.Controllers
                 await _context.SaveChangesAsync();
 
                 mockResult.Id = symptomCheck.Id;
-                mockResult.Symptoms = symptomsString;
+                mockResult.Symptoms = string.Join(", ", allSymptomsList);
                 mockResult.CreatedAt = symptomCheck.CreatedAt ?? DateTime.UtcNow;
 
                 return Ok(new ApiResponse<SymptomCheckResponseDto>
@@ -86,9 +103,17 @@ namespace Backend_APIs.Controllers
         {
             try
             {
-                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
-                if (userIdClaim == null) return Unauthorized(new ApiResponse<object> { Success = false, Message = "Invalid token", Data = null, Errors = null });
-                var userId = int.Parse(userIdClaim.Value);
+                var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (!int.TryParse(userIdClaim, out var userId))
+                {
+                    return Unauthorized(new ApiResponse<object>
+                    {
+                        Success = false,
+                        Message = "Invalid token",
+                        Data = null,
+                        Errors = null
+                    });
+                }
 
                 var history = await _context.Symptomchecks
                     .Where(s => s.UserId == userId)
@@ -98,11 +123,12 @@ namespace Backend_APIs.Controllers
                 var response = history.Select(h =>
                 {
                     var actions = ParseActions(h.RecommendedAction);
+                    var condition = ParseCondition(h.Airesponse);
                     return new SymptomCheckResponseDto
                     {
                         Id = h.Id,
                         Symptoms = h.Symptoms,
-                        Condition = h.Airesponse ?? "Unknown",
+                        Condition = condition,
                         Confidence = h.Confidence ?? 0,
                         Severity = h.Severity ?? "Unknown",
                         Recommendations = actions.Recommendations,
@@ -192,6 +218,30 @@ namespace Backend_APIs.Controllers
             {
                 return (new List<string> { json }, new List<string>());
             }
+        }
+
+        private string ParseCondition(string? json)
+        {
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return "Unknown";
+            }
+
+            try
+            {
+                using var doc = JsonDocument.Parse(json);
+                var root = doc.RootElement;
+
+                if (root.TryGetProperty("condition", out var conditionProp))
+                {
+                    return conditionProp.GetString() ?? "Unknown";
+                }
+            }
+            catch
+            {
+            }
+
+            return json;
         }
     }
 }
