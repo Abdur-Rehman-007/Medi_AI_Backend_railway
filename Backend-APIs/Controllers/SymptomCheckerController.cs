@@ -49,11 +49,14 @@ namespace Backend_APIs.Controllers
                 var mockResult = MockAIAnalysis(allSymptomsList);
                 // ---------------------------------------------------------------------
 
+                var sanitizedSeverity = NormalizeSeverityForDb(mockResult.Severity);
+                var sanitizedDuration = TruncateToLength("Unknown", 50);
+
                 var aiResponseJson = JsonSerializer.Serialize(new
                 {
                     condition = mockResult.Condition,
                     confidence = mockResult.Confidence,
-                    severity = mockResult.Severity,
+                    severity = sanitizedSeverity,
                     recommendations = mockResult.Recommendations,
                     warningSigns = mockResult.WarningSigns
                 });
@@ -62,8 +65,8 @@ namespace Backend_APIs.Controllers
                 {
                     UserId = userId,
                     Symptoms = symptomsJson,
-                    Duration = "Unknown", // Frontend could provide this
-                    Severity = mockResult.Severity,
+                    Duration = sanitizedDuration,
+                    Severity = sanitizedSeverity,
                     Airesponse = aiResponseJson,
                     Confidence = mockResult.Confidence,
                     RecommendedAction = JsonSerializer.Serialize(new
@@ -79,6 +82,7 @@ namespace Backend_APIs.Controllers
 
                 mockResult.Id = symptomCheck.Id;
                 mockResult.Symptoms = string.Join(", ", allSymptomsList);
+                mockResult.Severity = sanitizedSeverity;
                 mockResult.CreatedAt = symptomCheck.CreatedAt ?? DateTime.UtcNow;
 
                 return Ok(new ApiResponse<SymptomCheckResponseDto>
@@ -201,6 +205,28 @@ namespace Backend_APIs.Controllers
                 var root = doc.RootElement;
 
                 var recs = new List<string>();
+
+        private static string NormalizeSeverityForDb(string? severity)
+        {
+            var value = (severity ?? string.Empty).Trim().ToLowerInvariant();
+            return value switch
+            {
+                "mild" or "low" or "minimal" => "Mild",
+                "moderate" or "medium" or "medium severity" => "Moderate",
+                "severe" or "high" or "urgent" or "critical" => "Severe",
+                _ => "Moderate"
+            };
+        }
+
+        private static string TruncateToLength(string? value, int maxLength)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return string.Empty;
+            }
+
+            return value.Length <= maxLength ? value : value.Substring(0, maxLength);
+        }
                 if (root.TryGetProperty("Recommendations", out var recProp))
                 {
                     foreach (var item in recProp.EnumerateArray()) recs.Add(item.GetString() ?? "");
