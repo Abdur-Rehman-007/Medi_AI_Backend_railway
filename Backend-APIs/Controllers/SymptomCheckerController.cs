@@ -14,10 +14,12 @@ namespace Backend_APIs.Controllers
     public class SymptomCheckerController : ControllerBase
     {
         private readonly MediaidbContext _context;
+        private readonly ILogger<SymptomCheckerController> _logger;
 
-        public SymptomCheckerController(MediaidbContext context)
+        public SymptomCheckerController(MediaidbContext context, ILogger<SymptomCheckerController> logger)
         {
             _context = context;
+            _logger = logger;
         }
 
         [HttpPost("analyze")]
@@ -78,7 +80,20 @@ namespace Backend_APIs.Controllers
                 };
 
                 _context.Symptomchecks.Add(symptomCheck);
-                await _context.SaveChangesAsync();
+
+                try
+                {
+                    await _context.SaveChangesAsync();
+                }
+                catch (Exception dbEx)
+                {
+                    _logger.LogError(dbEx, "Failed to save symptom analysis. Inner exception: {InnerExceptionMessage}", dbEx.InnerException?.Message ?? "<none>");
+                    return StatusCode(500, new ApiResponse<object>
+                    {
+                        Success = false,
+                        Message = $"Analysis failed: {dbEx.InnerException?.Message ?? dbEx.Message}"
+                    });
+                }
 
                 mockResult.Id = symptomCheck.Id;
                 mockResult.Symptoms = string.Join(", ", allSymptomsList);
@@ -198,13 +213,41 @@ namespace Backend_APIs.Controllers
 
         private (List<string> Recommendations, List<string> Warnings) ParseActions(string? json)
         {
-            if (string.IsNullOrEmpty(json)) return (new List<string>(), new List<string>());
+            if (string.IsNullOrEmpty(json))
+            {
+                return (new List<string>(), new List<string>());
+            }
+
             try
             {
-                var doc = JsonDocument.Parse(json);
+                using var doc = JsonDocument.Parse(json);
                 var root = doc.RootElement;
 
                 var recs = new List<string>();
+                if (root.TryGetProperty("Recommendations", out var recProp))
+                {
+                    foreach (var item in recProp.EnumerateArray())
+                    {
+                        recs.Add(item.GetString() ?? string.Empty);
+                    }
+                }
+
+                var warns = new List<string>();
+                if (root.TryGetProperty("Warnings", out var warnProp))
+                {
+                    foreach (var item in warnProp.EnumerateArray())
+                    {
+                        warns.Add(item.GetString() ?? string.Empty);
+                    }
+                }
+
+                return (recs, warns);
+            }
+            catch
+            {
+                return (new List<string> { json }, new List<string>());
+            }
+        }
 
         private static string NormalizeSeverityForDb(string? severity)
         {
@@ -227,26 +270,8 @@ namespace Backend_APIs.Controllers
 
             return value.Length <= maxLength ? value : value.Substring(0, maxLength);
         }
-                if (root.TryGetProperty("Recommendations", out var recProp))
-                {
-                    foreach (var item in recProp.EnumerateArray()) recs.Add(item.GetString() ?? "");
-                }
 
-                var warns = new List<string>();
-                if (root.TryGetProperty("Warnings", out var warnProp))
-                {
-                    foreach (var item in warnProp.EnumerateArray()) warns.Add(item.GetString() ?? "");
-                }
-
-                return (recs, warns);
-            }
-            catch
-            {
-                return (new List<string> { json }, new List<string>());
-            }
-        }
-
-        private string ParseCondition(string? json)
+        private static string ParseCondition(string? json)
         {
             if (string.IsNullOrWhiteSpace(json))
             {
