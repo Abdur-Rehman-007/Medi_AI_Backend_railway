@@ -33,24 +33,36 @@ namespace Backend_APIs.Controllers
                 });
             }
 
-            var (success, message) = await _authService.RegisterAsync(registerDto);
-
-            if (!success)
+            try
             {
-                return BadRequest(new ApiResponse<object>
+                var (success, message) = await _authService.RegisterAsync(registerDto);
+
+                if (!success)
                 {
-                    Success = false,
+                    return BadRequest(new ApiResponse<object>
+                    {
+                        Success = false,
+                        Message = message,
+                        Data = null
+                    });
+                }
+
+                return Ok(new ApiResponse<object>
+                {
+                    Success = true,
                     Message = message,
                     Data = null
                 });
             }
-
-            return Ok(new ApiResponse<object>
+            catch (Exception ex)
             {
-                Success = true,
-                Message = message,
-                Data = null
-            });
+                return StatusCode(500, new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = $"Registration failed unexpectedly: {ex.Message}",
+                    Data = null
+                });
+            }
         }
 
         /// <summary>

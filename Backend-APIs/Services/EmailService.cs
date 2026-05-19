@@ -64,10 +64,11 @@ namespace Backend_APIs.Services
                 using var smtpClient = new SmtpClient(_smtpHost, _smtpPort)
                 {
                     EnableSsl = _enableSsl,
-                    Credentials = new NetworkCredential(_username, _password)
+                    Credentials = new NetworkCredential(_username, _password),
+                    Timeout = 10000
                 };
 
-                var mailMessage = new MailMessage
+                using var mailMessage = new MailMessage
                 {
                     From = new MailAddress(_senderEmail, _senderName),
                     Subject = subject,
@@ -77,13 +78,23 @@ namespace Backend_APIs.Services
 
                 mailMessage.To.Add(toEmail);
 
-                await smtpClient.SendMailAsync(mailMessage);
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+
+                try
+                {
+                    await smtpClient.SendMailAsync(mailMessage, cts.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw new Exception("SMTP connection timed out after 10 seconds.");
+                }
+
                 _logger.LogInformation($"Email sent successfully to {toEmail}");
                 return true;
             }
             catch (Exception ex)
             {
-                _logger.LogError($"Failed to send email to {toEmail}: {ex.Message}");
+                _logger.LogError(ex, "Failed to send email to {ToEmail}", toEmail);
                 
                 // Fallback to console in case of error
                 Console.WriteLine("=================================");
@@ -135,7 +146,7 @@ namespace Backend_APIs.Services
             <p class='warning'>?? If you didn't request this code, please ignore this email.</p>
         </div>
         <div class='footer'>
-            <p>© 2024 MediAI Healthcare. All rights reserved.</p>
+            <p>ï¿½ 2024 MediAI Healthcare. All rights reserved.</p>
             <p>This is an automated email. Please do not reply.</p>
         </div>
     </div>
@@ -185,7 +196,7 @@ namespace Backend_APIs.Services
             <p><strong>Stay healthy! ??</strong></p>
         </div>
         <div class='footer'>
-            <p>© 2024 MediAI Healthcare. All rights reserved.</p>
+            <p>ï¿½ 2024 MediAI Healthcare. All rights reserved.</p>
         </div>
     </div>
 </body>
@@ -230,7 +241,7 @@ namespace Backend_APIs.Services
             <p class='warning'>?? If you didn't request a password reset, please ignore this email and ensure your account is secure.</p>
         </div>
         <div class='footer'>
-            <p>© 2024 MediAI Healthcare. All rights reserved.</p>
+            <p>ï¿½ 2024 MediAI Healthcare. All rights reserved.</p>
         </div>
     </div>
 </body>

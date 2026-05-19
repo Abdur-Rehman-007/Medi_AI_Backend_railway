@@ -21,7 +21,9 @@ namespace Backend_APIs.Controllers
         [HttpGet("system-settings")]
         public async Task<IActionResult> GetSystemSettings()
         {
-            var settings = await _context.Systemsettings.ToListAsync();
+            var settings = await _context.Systemsettings
+                .AsNoTracking()
+                .ToListAsync();
 
             var dto = new SystemSettingsDto
             {
@@ -168,7 +170,7 @@ namespace Backend_APIs.Controllers
         public async Task<IActionResult> GetRecentActivities()
         {
             var recentAudits = await _context.Auditlogs
-                .Include(a => a.User)
+                .AsNoTracking()
                 .OrderByDescending(a => a.CreatedAt)
                 .Take(5)
                 .Select(a => new
@@ -209,6 +211,7 @@ namespace Backend_APIs.Controllers
             try
             {
                 var users = await _context.Users
+                    .AsNoTracking()
                     .OrderByDescending(u => u.CreatedAt)
                     .Take(5)
                     .Select(u => new
@@ -245,7 +248,7 @@ namespace Backend_APIs.Controllers
         {
             try
             {
-                var query = _context.Users.AsQueryable();
+                var query = _context.Users.AsNoTracking().AsQueryable();
 
                 if (!string.IsNullOrEmpty(role) && role != "All")
                 {
@@ -363,7 +366,7 @@ namespace Backend_APIs.Controllers
         public async Task<IActionResult> GetNotifications()
         {
             var notifications = await _context.Notifications
-                .Include(n => n.User)
+                .AsNoTracking()
                 .Where(n => n.User.Role == "Admin" || n.User.Role == "admin")
                 .OrderByDescending(n => n.CreatedAt)
                 .Take(10)

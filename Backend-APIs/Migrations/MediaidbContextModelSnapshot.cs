@@ -277,6 +277,54 @@ namespace Backend_APIs.Migrations
                     b.ToTable("doctors", (string)null);
                 });
 
+            modelBuilder.Entity("Backend_APIs.Models.Feedback", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AdminResponse")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("RespondedAt")
+                        .HasColumnType("timestamp");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("enum('Pending','Responded')")
+                        .HasDefaultValueSql("'Pending'");
+
+                    b.Property<string>("Subject")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id")
+                        .HasName("PRIMARY");
+
+                    b.HasIndex(new[] { "UserId", "CreatedAt" }, "idx_feedback_user_date");
+
+                    b.HasIndex(new[] { "UserId" }, "UserId")
+                        .HasDatabaseName("UserId1");
+
+                    b.ToTable("feedbacks", (string)null);
+                });
+
             modelBuilder.Entity("Backend_APIs.Models.Doctorleaf", b =>
                 {
                     b.Property<int>("Id")

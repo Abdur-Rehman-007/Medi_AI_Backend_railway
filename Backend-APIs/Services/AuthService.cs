@@ -28,6 +28,8 @@ namespace Backend_APIs.Services
 
         public async Task<(bool Success, string Message)> RegisterAsync(RegisterDto registerDto)
         {
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+
             try
             {
                 var email = registerDto.Email.Trim();
@@ -149,14 +151,23 @@ namespace Backend_APIs.Services
                     await _context.SaveChangesAsync();
 
                     // Send OTP via email
-                    await _emailService.SendOtpEmailAsync(user.Email, user.FullName, otp);
+                    var emailSent = await _emailService.SendOtpEmailAsync(user.Email, user.FullName, otp);
+                    if (!emailSent)
+                    {
+                        await transaction.RollbackAsync();
+                        return (false, "Account creation completed, but OTP email could not be sent. Please try again.");
+                    }
+
+                    await transaction.CommitAsync();
                     return (true, "Registration successful! Please verify your email.");
                 }
 
+                await transaction.CommitAsync();
                 return (true, "Registration successful! You can now login.");
             }
             catch (Exception ex)
             {
+                await transaction.RollbackAsync();
                 return (false, $"Registration failed: {ex.Message}");
             }
         }

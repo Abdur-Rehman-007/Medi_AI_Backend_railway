@@ -41,10 +41,10 @@ namespace Backend_APIs
 
             // Configure JWT Authentication
             var jwtSettings = builder.Configuration.GetSection("Jwt");
-            var jwtKey = jwtSettings["Key"];
+            var jwtKey = builder.Configuration["Jwt:Key"] ?? Environment.GetEnvironmentVariable("JWT_KEY");
             if (string.IsNullOrWhiteSpace(jwtKey))
             {
-                throw new InvalidOperationException("Jwt:Key is not configured.");
+                throw new InvalidOperationException("Jwt:Key is not configured. Set Jwt:Key in configuration or the JWT_KEY environment variable.");
             }
 
             var key = Encoding.UTF8.GetBytes(jwtKey);
@@ -128,37 +128,44 @@ namespace Backend_APIs
                 });
             });
 
-            // Add CORS
+            // Add CORS - read allowed origins from config or env in production
+            var isDev = builder.Environment.IsDevelopment();
+            var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>();
+            if ((allowedOrigins == null || allowedOrigins.Length == 0) && !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("CORS_ALLOWED_ORIGINS")))
+            {
+                allowedOrigins = Environment.GetEnvironmentVariable("CORS_ALLOWED_ORIGINS")!.Split(';', System.StringSplitOptions.RemoveEmptyEntries);
+            }
+
             builder.Services.AddCors(options =>
             {
-                options.AddPolicy("AllowAll", policy =>
+                options.AddPolicy("DefaultCors", policy =>
                 {
-                    policy.AllowAnyOrigin()
-                          .AllowAnyMethod()
-                          .AllowAnyHeader();
+                    if (isDev)
+                    {
+                        policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
+                    }
+                    else
+                    {
+                        if (allowedOrigins != null && allowedOrigins.Length > 0)
+                        {
+                            policy.WithOrigins(allowedOrigins)
+                                  .AllowAnyHeader()
+                                  .AllowAnyMethod()
+                                  .AllowCredentials();
+                        }
+                        else
+                        {
+                            // Fallback: restrict to no origins if not configured to force deploy fail-safe
+                            policy.DisallowCredentials();
+                        }
+                    }
                 });
             });
 
             var app = builder.Build();
 
-            app.UseExceptionHandler(errorApp =>
-            {
-                errorApp.Run(async context =>
-                {
-                    context.Response.StatusCode = StatusCodes.Status500InternalServerError;
-                    context.Response.ContentType = "application/json";
-
-                    var response = new DTOs.ApiResponse<object>
-                    {
-                        Success = false,
-                        Message = "An unexpected error occurred",
-                        Data = null,
-                        Errors = null
-                    };
-
-                    await context.Response.WriteAsJsonAsync(response);
-                });
-            });
+            // Use a global exception middleware to ensure consistent ApiResponse payloads
+            app.UseMiddleware<Middleware.GlobalExceptionMiddleware>();
             // REMOVE the if (app.Environment.IsDevelopment()) wrapper
             // REMOVE the if (app.Environment.IsDevelopment()) wrapper
             app.UseSwagger();
@@ -181,7 +188,7 @@ namespace Backend_APIs
             // Enable serving static files (for profile photos)
             app.UseStaticFiles();
 
-            app.UseCors("AllowAll");
+            app.UseCors("DefaultCors");
 
             app.UseAuthentication();
             app.UseAuthorization();

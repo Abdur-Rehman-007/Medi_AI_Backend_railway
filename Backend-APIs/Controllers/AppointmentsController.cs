@@ -46,6 +46,7 @@ namespace Backend_APIs.Controllers
                     .Include(a => a.Doctor)
                         .ThenInclude(d => d.User)
                     .Include(a => a.Prescriptions)
+                    .AsNoTracking()
                     .OrderByDescending(a => a.AppointmentDate)
                     .ThenByDescending(a => a.AppointmentTime)
                     .ToListAsync();
@@ -121,6 +122,7 @@ namespace Backend_APIs.Controllers
                     .Include(a => a.Doctor)
                         .ThenInclude(d => d.User)
                     .Include(a => a.Prescriptions)
+                    .AsNoTracking()
                     .Where(a => a.PatientId == patientId) // Get all, then separate by date/status? OR just get past
                     .Where(a => a.AppointmentDate < today || a.Status == "Completed" || a.Status == "Cancelled")
                     .OrderByDescending(a => a.AppointmentDate)
@@ -360,9 +362,9 @@ namespace Backend_APIs.Controllers
                 _context.Notifications.Add(new Notification
                 {
                     UserId = doctor.UserId,
-                    Title = "New Appointment Booking",
-                    Message = $"{patient.FullName} booked an appointment on {appointmentDate:yyyy-MM-dd} at {appointmentTime:HH\\:mm}",
-                    Type = "Appointment",
+                    Title = "New Appointment Request",
+                    Message = $"A new appointment has been requested by {patient.FullName} for {appointmentDateTime:yyyy-MM-dd HH:mm}.",
+                    Type = "Appointment_New",
                     RelatedEntityId = appointment.Id,
                     RelatedEntityType = "Appointment",
                     IsRead = false,
@@ -426,10 +428,13 @@ namespace Backend_APIs.Controllers
 
                 if (role == "doctor")
                 {
-                    var doctor = await _context.Doctors.FirstOrDefaultAsync(d => d.UserId == userId);
+                    var doctor = await _context.Doctors
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(d => d.UserId == userId);
                     if (doctor == null) return NotFound(new ApiResponse<object> { Success = false, Message = "Doctor profile not found" });
 
                     appointmentsList = await _context.Appointments
+                        .AsNoTracking()
                         .Include(a => a.Patient)
                         .Include(a => a.Prescriptions)
                         .Where(a => a.DoctorId == doctor.Id)
@@ -440,6 +445,7 @@ namespace Backend_APIs.Controllers
                 else // student/patient
                 {
                     appointmentsList = await _context.Appointments
+                        .AsNoTracking()
                         .Include(a => a.Doctor).ThenInclude(d => d.User)
                         .Include(a => a.Prescriptions)
                         .Where(a => a.PatientId == userId)
@@ -516,6 +522,7 @@ namespace Backend_APIs.Controllers
                 var today = DateOnly.FromDateTime(DateTime.Today);
 
                 var appointmentList = await _context.Appointments
+                    .AsNoTracking()
                     .Include(a => a.Patient)
                     .Include(a => a.Doctor)
                         .ThenInclude(d => d.User)
@@ -583,7 +590,9 @@ namespace Backend_APIs.Controllers
                 var userId = int.Parse(userIdClaim.Value);
 
                 // Find doctor profile
-                var doctor = await _context.Doctors.FirstOrDefaultAsync(d => d.UserId == userId);
+                var doctor = await _context.Doctors
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(d => d.UserId == userId);
                 if (doctor == null)
                 {
                     return NotFound(new ApiResponse<object>
@@ -595,6 +604,7 @@ namespace Backend_APIs.Controllers
                 }
 
                 var appointmentList = await _context.Appointments
+                    .AsNoTracking()
                     .Include(a => a.Patient)
                     .Include(a => a.Doctor)
                         .ThenInclude(d => d.User)
@@ -658,6 +668,7 @@ namespace Backend_APIs.Controllers
                 }
 
                 var appointment = await _context.Appointments
+                    .AsNoTracking()
                     .Include(a => a.Patient)
                     .Include(a => a.Doctor)
                         .ThenInclude(d => d.User)
@@ -728,7 +739,11 @@ namespace Backend_APIs.Controllers
                     });
                 }
 
-                var appointment = await _context.Appointments.FindAsync(id);
+                var appointment = await _context.Appointments
+                    .Include(a => a.Patient)
+                    .Include(a => a.Doctor)
+                        .ThenInclude(d => d.User)
+                    .FirstOrDefaultAsync(a => a.Id == id);
                 if (appointment == null)
                 {
                     return NotFound(new ApiResponse<object>
@@ -750,10 +765,38 @@ namespace Backend_APIs.Controllers
                     });
                 }
 
+                var wasConfirmed = string.Equals(appointment.Status, "Confirmed", StringComparison.OrdinalIgnoreCase);
+                var willBeConfirmed = string.Equals(statusDto.Status, "Confirmed", StringComparison.OrdinalIgnoreCase);
+
                 appointment.Status = statusDto.Status;
                 appointment.UpdatedAt = DateTime.UtcNow;
 
                 await _context.SaveChangesAsync();
+
+                if (!wasConfirmed && willBeConfirmed)
+                {
+                    var appointmentDateTime = new DateTime(
+                        appointment.AppointmentDate.Year,
+                        appointment.AppointmentDate.Month,
+                        appointment.AppointmentDate.Day,
+                        appointment.AppointmentTime.Hour,
+                        appointment.AppointmentTime.Minute,
+                        appointment.AppointmentTime.Second);
+
+                    _context.Notifications.Add(new Notification
+                    {
+                        UserId = appointment.PatientId,
+                        Title = "Appointment Confirmed",
+                        Message = $"Your appointment with Dr. {appointment.Doctor?.User?.FullName ?? "Unknown"} is confirmed for {appointmentDateTime:yyyy-MM-dd HH:mm}.",
+                        Type = "Appointment_Confirmed",
+                        RelatedEntityId = appointment.Id,
+                        RelatedEntityType = "Appointment",
+                        IsRead = false,
+                        CreatedAt = DateTime.UtcNow
+                    });
+
+                    await _context.SaveChangesAsync();
+                }
 
                 return Ok(new ApiResponse<object>
                 {

@@ -61,6 +61,8 @@ public partial class User
 
     public virtual ICollection<Medicinereminder> Medicinereminders { get; set; } = new List<Medicinereminder>();
 
+    public virtual ICollection<Feedback> Feedbacks { get; set; } = new List<Feedback>();
+
     public virtual ICollection<Notification> Notifications { get; set; } = new List<Notification>();
 
     public virtual ICollection<Passwordresettoken> Passwordresettokens { get; set; } = new List<Passwordresettoken>();

@@ -174,6 +174,7 @@ namespace Backend_APIs.Controllers
         public async Task<ActionResult<object>> GetDoctors()
         {
             var doctors = await _context.Doctors
+                .AsNoTracking()
                 .Include(d => d.User)
                 .Select(d => new
                 {
@@ -216,6 +217,7 @@ namespace Backend_APIs.Controllers
         public async Task<ActionResult<object>> GetDoctor(int id)
         {
             var doctor = await _context.Doctors
+                .AsNoTracking()
                 .Include(d => d.User)
                 .Include(d => d.Doctorschedules)
                 .Include(d => d.Doctorreviews)
@@ -289,6 +291,7 @@ namespace Backend_APIs.Controllers
         public async Task<ActionResult<object>> GetDoctorsBySpecialization(string specialization)
         {
             var doctors = await _context.Doctors
+                .AsNoTracking()
                 .Include(d => d.User)
                 .Where(d => d.Specialization.ToLower().Contains(specialization.ToLower()))
                 .Select(d => new
@@ -443,6 +446,7 @@ namespace Backend_APIs.Controllers
             }
 
             var doctors = await _context.Doctors
+                .AsNoTracking()
                 .Include(d => d.User)
                 .Where(d => d.IsAvailable == true && d.User.IsActive == true)
                 .Select(d => new
@@ -480,8 +484,7 @@ namespace Backend_APIs.Controllers
             try
             {
                 var doctorsQuery = _context.Doctors
-                    .Include(d => d.User)
-                    .Include(d => d.Doctorreviews)
+                    .AsNoTracking()
                     .Where(d => d.User.IsActive == true)
                     .AsQueryable();
 
@@ -605,6 +608,7 @@ namespace Backend_APIs.Controllers
                 }
 
                 var doctor = await _context.Doctors
+                    .AsNoTracking()
                     .Include(d => d.User)
                     .Include(d => d.Doctorschedules)
                     .FirstOrDefaultAsync(d => d.Id == id);
@@ -641,6 +645,7 @@ namespace Backend_APIs.Controllers
                 }
 
                 var existingAppointments = await _context.Appointments
+                    .AsNoTracking()
                     .Where(a => a.DoctorId == id
                         && a.AppointmentDate == requestedDate
                         && a.Status != "Cancelled")
@@ -717,6 +722,7 @@ namespace Backend_APIs.Controllers
             try
             {
                 var doctor = await _context.Doctors
+                    .AsNoTracking()
                     .Include(d => d.User)
                     .Include(d => d.Doctorschedules)
                     .FirstOrDefaultAsync(d => d.Id == id);
@@ -928,6 +934,7 @@ namespace Backend_APIs.Controllers
 
                 var today = DateOnly.FromDateTime(DateTime.Today);
                 var appointments = await _context.Appointments
+                    .AsNoTracking()
                     .Include(a => a.Patient)
                     .Where(a => a.DoctorId == doctor.Id && a.AppointmentDate == today)
                     .Select(a => new AppointmentResponseDto
@@ -976,6 +983,7 @@ namespace Backend_APIs.Controllers
                 if (doctor == null) return NotFound("Doctor profile not found");
 
                 var appointments = await _context.Appointments
+                    .AsNoTracking()
                     .Include(a => a.Patient)
                     .Where(a => a.DoctorId == doctor.Id)
                     .OrderByDescending(a => a.AppointmentDate)
@@ -1026,12 +1034,14 @@ namespace Backend_APIs.Controllers
                 if (doctor == null) return NotFound("Doctor profile not found");
 
                 var patientIds = await _context.Appointments
+                    .AsNoTracking()
                     .Where(a => a.DoctorId == doctor.Id)
                     .Select(a => a.PatientId)
                     .Distinct()
                     .ToListAsync();
 
                 var patients = await _context.Users
+                    .AsNoTracking()
                     .Where(u => patientIds.Contains(u.Id))
                     .Select(u => new
                     {
@@ -1236,6 +1246,7 @@ namespace Backend_APIs.Controllers
 
                 var today = DateOnly.FromDateTime(DateTime.Today);
                 var appointments = await _context.Appointments
+                    .AsNoTracking()
                     .Include(a => a.Patient)
                     .Where(a => a.DoctorId == doctor.Id && a.AppointmentDate > today)
                     .OrderBy(a => a.AppointmentDate)
@@ -1288,19 +1299,22 @@ namespace Backend_APIs.Controllers
                 var today = DateOnly.FromDateTime(DateTime.Today);
                 var now = TimeOnly.FromDateTime(DateTime.Now);
 
-                var todayAppointments = await _context.Appointments
-                    .Where(a => a.DoctorId == doctor.Id && a.AppointmentDate == today)
-                    .ToListAsync();
+                var todayTotal = await _context.Appointments
+                    .AsNoTracking()
+                    .CountAsync(a => a.DoctorId == doctor.Id && a.AppointmentDate == today);
 
                 var pendingToday = await _context.Appointments
+                    .AsNoTracking()
                     .Where(a => a.DoctorId == doctor.Id && a.AppointmentDate == today && a.Status == "Pending")
                     .CountAsync();
 
                 var completedToday = await _context.Appointments
+                    .AsNoTracking()
                     .Where(a => a.DoctorId == doctor.Id && a.AppointmentDate == today && (a.Status == "Completed" || a.Status == "Checked"))
                     .CountAsync();
 
                 var totalPatients = await _context.Appointments
+                    .AsNoTracking()
                     .Where(a => a.DoctorId == doctor.Id)
                     .Select(a => a.PatientId)
                     .Distinct()
@@ -1313,7 +1327,7 @@ namespace Backend_APIs.Controllers
                     Data = new
                     {
                         totalPatients,
-                        todayTotal = todayAppointments.Count,
+                        todayTotal,
                         completedToday,
                         pendingToday
                     }

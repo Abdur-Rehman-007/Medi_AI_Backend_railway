@@ -44,6 +44,8 @@ public partial class MediaidbContext : DbContext
 
     public virtual DbSet<Notification> Notifications { get; set; }
 
+    public virtual DbSet<Feedback> Feedbacks { get; set; }
+
     public virtual DbSet<Passwordresettoken> Passwordresettokens { get; set; }
     public virtual DbSet<Refreshtoken> RefreshTokens { get; set; }
 
@@ -408,6 +410,34 @@ public partial class MediaidbContext : DbContext
             entity.HasOne(d => d.User).WithMany(p => p.Notifications)
                 .HasForeignKey(d => d.UserId)
                 .HasConstraintName("notifications_ibfk_1");
+        });
+
+        modelBuilder.Entity<Feedback>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PRIMARY");
+
+            entity.ToTable("feedbacks");
+
+            entity.HasIndex(e => e.UserId, "UserId");
+
+            entity.HasIndex(e => new { e.UserId, e.CreatedAt }, "idx_feedback_user_date");
+
+            entity.Property(e => e.AdminResponse).HasColumnType("text");
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP")
+                .HasColumnType("timestamp");
+            entity.Property(e => e.Message).HasColumnType("text");
+            entity.Property(e => e.RespondedAt).HasColumnType("timestamp");
+            entity.Property(e => e.Status)
+                .HasDefaultValueSql("'Pending'")
+                .HasColumnType("enum('Pending','Responded')");
+            entity.Property(e => e.Subject).HasMaxLength(200);
+
+            entity.HasOne(e => e.User)
+                .WithMany(p => p.Feedbacks)
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("feedbacks_ibfk_1");
         });
 
         modelBuilder.Entity<Passwordresettoken>(entity =>
